@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import CometLogger
 
 from deepspeech_pytorch.decoder import GreedyDecoder
 from deepspeech_pytorch.loader.data_loader import SpectrogramDataset, AudioDataLoader
-from deepspeech_pytorch.model import DeepSpeech, supported_rnns, DeepSpeechModule
+from deepspeech_pytorch.model import DeepSpeech, supported_rnns
 
 
 class AverageMeter(object):
@@ -39,22 +39,25 @@ def train(cfg):
     with open(to_absolute_path(cfg.data.labels_path)) as label_file:
         labels = json.load(label_file)
 
+    decoder = GreedyDecoder(labels)  # Decoder used for validation
+
     model = DeepSpeech(
+        cfg=cfg,
         rnn_hidden_size=cfg.model.hidden_size,
         nb_layers=cfg.model.hidden_layers,
         labels=labels,
         rnn_type=supported_rnns[cfg.model.rnn_type.value],
         audio_conf=cfg.data.spect,
-        bidirectional=True
+        bidirectional=True,
+        decoder=decoder,
     )
     print("Number of parameters: %d" % DeepSpeech.get_param_size(model))
 
     # Data setup
-    decoder = GreedyDecoder(model.labels)  # Decoder used for validation
     train_dataset = SpectrogramDataset(
         audio_conf=model.audio_conf,
         manifest_filepath=to_absolute_path(cfg.data.train_manifest),
-        labels=model.labels,
+        labels=labels,
         normalize=True,
         augmentation_conf=cfg.data.augmentation,
     )
@@ -62,7 +65,7 @@ def train(cfg):
     val_dataset = SpectrogramDataset(
         audio_conf=model.audio_conf,
         manifest_filepath=to_absolute_path(cfg.data.val_manifest),
-        labels=model.labels,
+        labels=labels,
         normalize=True,
     )
 
@@ -78,12 +81,6 @@ def train(cfg):
         num_workers=cfg.data.num_workers,
         batch_size=cfg.data.batch_size,
         shuffle=False,
-    )
-
-    module = DeepSpeechModule(
-        model=model,
-        decoder=decoder,
-        cfg=cfg
     )
 
     comet_logger = CometLogger(
@@ -116,7 +113,6 @@ def train(cfg):
         fast_dev_run=cfg.training.fast_dev_run,
         early_stop_callback=early_stopping,
         checkpoint_callback=model_checkpoint_callback,
-        gradient_clip_val=1.0
     )
 
-    trainer.fit(module, train_dataloader=train_loader, val_dataloaders=val_loader)
+    trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)

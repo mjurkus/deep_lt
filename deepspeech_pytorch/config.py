@@ -39,7 +39,7 @@ class AugmentationConfig:
 class DataConfig:
     train_manifest: str = 'manifests/train_manifest.csv'
     val_manifest: str = 'manifests/val_manifest.csv'
-    batch_size: int = 20  # Batch size for training
+    batch_size: int = 24  # Batch size for training
     num_workers: int = 8  # Number of workers used in data-loading
     labels_path: str = 'labels.json'  # Contains tokens for model output
     spect: SpectConfig = SpectConfig()
@@ -48,7 +48,7 @@ class DataConfig:
 
 @dataclass
 class BiDirectionalConfig:
-    rnn_type: RNNType = RNNType.gru  # Type of RNN to use in model
+    rnn_type: RNNType = RNNType.lstm  # Type of RNN to use in model
     hidden_size: int = 1024  # Hidden size of RNN Layer
     hidden_layers: int = 5  # Number of RNN layers
 
