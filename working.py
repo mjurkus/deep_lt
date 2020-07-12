@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 
 ds = pd.read_csv('manifests/liepa_manifest.csv', header=None, names=['colA', 'colB'])
+ds = ds.sample(frac=0.05)
 
 train_ds, val_ds = train_test_split(ds, test_size=0.2)
 
