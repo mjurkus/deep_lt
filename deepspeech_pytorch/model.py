@@ -1,10 +1,11 @@
 import math
 from collections import OrderedDict
-from enum import Enum
 
+import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import optim
 
 # Due to backwards compatibility we need to keep the below structure for mapping RNN type
 supported_rnns = {
@@ -13,6 +14,101 @@ supported_rnns = {
     'gru': nn.GRU
 }
 supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
+
+
+class DeepSpeechModule(pl.LightningModule):
+
+    def __init__(self, model, decoder, cfg):
+        super(DeepSpeechModule, self).__init__()
+        self.model = model
+        self.cfg = cfg
+        self.criterion = nn.CTCLoss(zero_infinity=True)
+        self.decoder = decoder
+
+    def forward(self, x, lengths):
+        return self.model(x, lengths)
+
+    def configure_optimizers(self):
+        self.optimizer = optim.AdamW(
+            self.parameters(), lr=self.cfg.optim.learning_rate,
+            betas=self.cfg.optim.betas,
+            eps=self.cfg.optim.eps,
+            weight_decay=self.cfg.optim.weight_decay
+        )
+
+        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            self.optimizer,
+            mode='min',
+            factor=0.50,
+            patience=6,
+        )
+
+        return [self.optimizer], [self.scheduler]
+
+    def step(self, batch):
+        inputs, targets, input_percentages, target_sizes = batch
+        input_sizes = input_percentages.mul_(int(inputs.size(3))).int()
+
+        out, output_sizes = self.forward(inputs, input_sizes)
+        out = out.transpose(0, 1)  # TxNxH
+        out = out.float()
+        loss = self.criterion(out, targets, output_sizes, target_sizes)
+        return loss
+
+    def training_step(self, batch, batch_idx):
+        """
+        # TODO add gradient clipping to Trainer
+        """
+        loss = self.step(batch)
+
+        comet_logs = {'training_loss': loss}
+
+        return {'loss': loss, 'log': comet_logs}
+
+    def validation_step(self, batch, batch_idx):
+        inputs, targets, input_percentages, target_sizes = batch
+        input_sizes = input_percentages.mul_(int(inputs.size(3))).int()
+
+        out, output_sizes = self.forward(inputs, input_sizes)
+
+        val_loss = self.criterion(out.transpose(0, 1), targets, output_sizes, target_sizes)
+
+        split_targets = []
+        offset = 0
+        for size in target_sizes:
+            split_targets.append(targets[offset:offset + size])
+            offset += size
+
+        decoded_output, _ = self.decoder.decode(out, output_sizes)
+        target_strings = self.decoder.convert_to_strings(split_targets)
+
+        total_cer, total_wer, num_tokens, num_chars = 0, 0, 0, 0
+        for x in range(len(target_strings)):
+            transcript, reference = decoded_output[x][0], target_strings[x][0]
+            wer_inst = self.decoder.wer(transcript, reference)
+            cer_inst = self.decoder.cer(transcript, reference)
+            total_wer += wer_inst
+            total_cer += cer_inst
+            num_tokens += len(reference.split())
+            num_chars += len(reference.replace(' ', ''))
+
+        wer = float(total_wer) / num_tokens * 100
+        cer = float(total_cer) / num_chars * 100
+
+        return {'val_loss': val_loss, 'wer': wer, 'cer': cer}
+
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        avg_wer = torch.stack([torch.tensor(x['wer']) for x in outputs]).mean()
+        avg_cer = torch.stack([torch.tensor(x['cer']) for x in outputs]).mean()
+
+        comet_logs = OrderedDict({
+            'val_loss': avg_loss,
+            'wer': avg_wer,
+            'cer': avg_cer
+        })
+
+        return {'val_loss': avg_loss, 'log': comet_logs, }
 
 
 class SequenceWise(nn.Module):

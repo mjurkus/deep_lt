@@ -1,0 +1,51 @@
+optim:
+  learning_rate: 0.0003
+  weight_decay: 1.0e-05
+  eps: 1.0e-08
+  betas:
+  - 0.9
+  - 0.999
+model:
+  rnn_type: lstm
+  hidden_size: 1024
+  hidden_layers: 1
+training:
+  no_cuda: false
+  finetune: false
+  seed: 123456
+  dist_backend: nccl
+  epochs: 70
+  fast_dev_run: true
+data:
+  train_manifest: manifests/train_manifest.csv
+  val_manifest: manifests/val_manifest.csv
+  batch_size: 20
+  num_workers: 8
+  labels_path: labels.json
+  spect:
+    sample_rate: 16000
+    window_size: 0.02
+    window_stride: 0.01
+    window: hamming
+  augmentation:
+    speed_volume_perturb: false
+    spec_augment: false
+    noise_dir: ''
+    noise_prob: 0.4
+    noise_min: 0.0
+    noise_max: 0.5
+augmentation:
+  speed_volume_perturb: false
+  spec_augment: false
+  noise_dir: ''
+  noise_prob: 0.4
+  noise_min: 0.0
+  noise_max: 0.5
+apex:
+  opt_level: O1
+  loss_scale: 1
+comet:
+  comet_api_key: ''
+  project_name: deep-lt
+  workspace: mjurkus
+  disabled: false

@@ -1,13 +1,9 @@
-from dataclasses import dataclass, field
-from typing import Any, List
+from dataclasses import dataclass
 
 from deepspeech_pytorch.enums import DistributedBackend, SpectrogramWindow, RNNType
-from omegaconf import MISSING
 
 defaults = [
-    {"optim": "sgd"},
     {"model": "bidirectional"},
-    {"checkpointing": "file"}
 ]
 
 
@@ -18,6 +14,7 @@ class TrainingConfig:
     seed: int = 123456  # Seed for generators
     dist_backend: DistributedBackend = DistributedBackend.nccl  # If using distribution, the backend to be used
     epochs: int = 70  # Number of Training Epochs
+    fast_dev_run: bool = True
 
 
 @dataclass
@@ -40,10 +37,10 @@ class AugmentationConfig:
 
 @dataclass
 class DataConfig:
-    train_manifest: str = 'data/train_manifest.csv'
-    val_manifest: str = 'data/val_manifest.csv'
+    train_manifest: str = 'manifests/train_manifest.csv'
+    val_manifest: str = 'manifests/val_manifest.csv'
     batch_size: int = 20  # Batch size for training
-    num_workers: int = 4  # Number of workers used in data-loading
+    num_workers: int = 8  # Number of workers used in data-loading
     labels_path: str = 'labels.json'  # Contains tokens for model output
     spect: SpectConfig = SpectConfig()
     augmentation: AugmentationConfig = AugmentationConfig()
@@ -51,7 +48,7 @@ class DataConfig:
 
 @dataclass
 class BiDirectionalConfig:
-    rnn_type: RNNType = RNNType.lstm  # Type of RNN to use in model
+    rnn_type: RNNType = RNNType.gru  # Type of RNN to use in model
     hidden_size: int = 1024  # Hidden size of RNN Layer
     hidden_layers: int = 5  # Number of RNN layers
 
@@ -64,14 +61,7 @@ class UniDirectionalConfig(BiDirectionalConfig):
 @dataclass
 class OptimConfig:
     learning_rate: float = 3e-4  # Initial Learning Rate
-    learning_anneal: float = 1.1  # Annealing applied to learning rate after each epoch
     weight_decay: float = 1e-5  # Initial Weight Decay
-    max_norm: float = 400  # Norm cutoff to prevent explosion of gradients
-
-
-@dataclass
-class SGDConfig(OptimConfig):
-    momentum: float = 0.9
 
 
 @dataclass
@@ -81,50 +71,25 @@ class AdamConfig(OptimConfig):
 
 
 @dataclass
-class CheckpointConfig:
-    continue_from: str = ''  # Continue training from checkpoint model
-    checkpoint: bool = True  # Enables epoch checkpoint saving of model
-    checkpoint_per_iteration: int = 0  # Save checkpoint per N number of iterations. Default is disabled
-    save_n_recent_models: int = 10  # Max number of checkpoints to save, delete older checkpoints
-    best_val_model_name: str = 'deepspeech_final.pth'  # Name to save best validated model within the save folder
-    load_auto_checkpoint: bool = False  # Automatically load the latest checkpoint from save folder
-
-
-@dataclass
-class FileCheckpointConfig(CheckpointConfig):
-    save_folder: str = 'models/'  # Location to save checkpoint models
-
-
-@dataclass
-class GCSCheckpointConfig(CheckpointConfig):
-    gcs_bucket: str = MISSING  # Bucket to store model checkpoints e.g bucket-name
-    gcs_save_folder: str = MISSING  # Folder to store model checkpoints in bucket e.g models/
-    local_save_file: str = './local_checkpoint.pth'  # Place to store temp file on disk
-
-
-@dataclass
-class VisualizationConfig:
-    id: str = 'DeepSpeech training'  # Name to use when visualizing/storing the run
-    visdom: bool = False  # Turn on visdom graphing
-    tensorboard: bool = False  # Turn on Tensorboard graphing
-    log_dir: str = 'visualize/deepspeech_final'  # Location of Tensorboard log
-    log_params: bool = False  # Log parameter values and gradients
-
-
-@dataclass
 class ApexConfig:
     opt_level: str = 'O1'  # Apex optimization level, check https://nvidia.github.io/apex/amp.html for more information
     loss_scale: int = 1  # Loss scaling used by Apex. Default is 1 due to warp-ctc not supporting scaling of gradients
 
 
 @dataclass
+class CometMLConfig:
+    api_key: str = ''
+    project_name: str = "deep-lt"
+    workspace: str = "mjurkus"
+    disabled: bool = True
+
+
+@dataclass
 class DeepSpeechConfig:
-    defaults: List[Any] = field(default_factory=lambda: defaults)
-    optim: Any = MISSING
-    model: Any = MISSING
-    checkpointing: Any = MISSING
+    optim: AdamConfig = AdamConfig()
+    model: BiDirectionalConfig = BiDirectionalConfig()
     training: TrainingConfig = TrainingConfig()
     data: DataConfig = DataConfig()
     augmentation: AugmentationConfig = AugmentationConfig()
     apex: ApexConfig = ApexConfig()
-    visualization: VisualizationConfig = VisualizationConfig()
+    comet: CometMLConfig = CometMLConfig()
