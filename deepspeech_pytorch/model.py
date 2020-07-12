@@ -53,6 +53,7 @@ class DeepSpeechModule(pl.LightningModule):
         out = out.transpose(0, 1)  # TxNxH
         out = out.float()
         loss = self.criterion(out, targets, output_sizes, target_sizes)
+        loss = loss / inputs.size(0)
         return loss
 
     def training_step(self, batch, batch_idx):
@@ -72,6 +73,7 @@ class DeepSpeechModule(pl.LightningModule):
         out, output_sizes = self.forward(inputs, input_sizes)
 
         val_loss = self.criterion(out.transpose(0, 1), targets, output_sizes, target_sizes)
+        val_loss = val_loss / inputs.size(0)
 
         split_targets = []
         offset = 0
