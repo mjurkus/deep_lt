@@ -87,7 +87,7 @@ class CometMLConfig:
     api_key: str = ''
     project_name: str = "deep-lt"
     workspace: str = "mjurkus"
-    disabled: bool = True,
+    disabled: bool = True
     experiment_key: str = ''
 
 
