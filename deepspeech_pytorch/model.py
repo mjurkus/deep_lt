@@ -231,7 +231,11 @@ class DeepSpeech(pl.LightningModule):
 
         out, output_sizes = self.forward(inputs, input_sizes)
         out = out.transpose(0, 1)  # TxNxH
-        loss = self.criterion(out, targets, output_sizes, target_sizes)
+        out = out.float()
+
+        # https://github.com/SeanNaren/warp-ctc/issues/62
+        device = torch.device('cpu')
+        loss = self.criterion(out, targets.to(device), output_sizes.to(device), target_sizes.to(device))
         loss = loss / inputs.size(0)
 
         comet_logs = {'training_loss': loss}
@@ -244,7 +248,15 @@ class DeepSpeech(pl.LightningModule):
 
         out, output_sizes = self.forward(inputs, input_sizes)
 
-        val_loss = self.criterion(out.transpose(0, 1), targets, output_sizes, target_sizes)
+        # https://github.com/SeanNaren/warp-ctc/issues/62
+        device = torch.device('cpu')
+        val_loss = self.criterion(
+            out.transpose(0, 1).float(),
+            targets.to(device),
+            output_sizes.to(device),
+            target_sizes.to(device)
+        )
+
         val_loss = val_loss / inputs.size(0)
 
         split_targets = []
