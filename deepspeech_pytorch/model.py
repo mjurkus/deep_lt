@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
+from warpctc_pytorch import CTCLoss
 
 # Due to backwards compatibility we need to keep the below structure for mapping RNN type
 supported_rnns = {
@@ -142,7 +143,7 @@ class DeepSpeech(pl.LightningModule):
         self.labels = labels
         self.bidirectional = bidirectional
         self.decoder = decoder
-        self.criterion = nn.CTCLoss()
+        self.criterion = CTCLoss()
 
         sample_rate = self.audio_conf["sample_rate"]
         window_size = self.audio_conf["window_size"]
