@@ -41,16 +41,29 @@ def train(cfg):
 
     decoder = GreedyDecoder(labels)  # Decoder used for validation
 
-    model = DeepSpeech(
-        cfg=cfg,
-        rnn_hidden_size=cfg.model.hidden_size,
-        nb_layers=cfg.model.hidden_layers,
-        labels=labels,
-        rnn_type=supported_rnns[cfg.model.rnn_type.value],
-        audio_conf=cfg.data.spect,
-        bidirectional=True,
-        decoder=decoder,
-    )
+    if not cfg.checkpoint.enabled:
+        model = DeepSpeech(
+            cfg=cfg,
+            rnn_hidden_size=cfg.model.hidden_size,
+            nb_layers=cfg.model.hidden_layers,
+            labels=labels,
+            rnn_type=supported_rnns[cfg.model.rnn_type.value],
+            audio_conf=cfg.data.spect,
+            bidirectional=True,
+            decoder=decoder,
+        )
+    else:
+        model = DeepSpeech.load_from_checkpoint(
+            checkpoint_path=cfg.checkpoint.checkpoint_path,
+            cfg=cfg,
+            rnn_hidden_size=cfg.model.hidden_size,
+            nb_layers=cfg.model.hidden_layers,
+            labels=labels,
+            rnn_type=supported_rnns[cfg.model.rnn_type.value],
+            audio_conf=cfg.data.spect,
+            bidirectional=True,
+            decoder=decoder,
+        )
     print("Number of parameters: %d" % DeepSpeech.get_param_size(model))
 
     # Data setup
@@ -87,7 +100,8 @@ def train(cfg):
         api_key=cfg.comet.api_key,
         project_name=cfg.comet.project_name,
         workspace=cfg.comet.workspace,
-        disabled=cfg.comet.disabled or len(cfg.comet.api_key) == 0
+        disabled=cfg.comet.disabled or len(cfg.comet.api_key) == 0,
+        experiment_key=None if len(cfg.comet.experiment_key) == 0 else cfg.comet.experiment_key,
     )
 
     callbacks = [

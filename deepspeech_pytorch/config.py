@@ -18,6 +18,12 @@ class TrainingConfig:
 
 
 @dataclass
+class CheckpointConfig:
+    enabled: bool = True
+    checkpoint_path: str = 'models/'
+
+
+@dataclass
 class SpectConfig:
     sample_rate: int = 16000  # The sample rate for the data/model features
     window_size: float = .02  # Window size for spectrogram generation (seconds)
@@ -39,8 +45,8 @@ class AugmentationConfig:
 class DataConfig:
     train_manifest: str = 'manifests/train_manifest.csv'
     val_manifest: str = 'manifests/val_manifest.csv'
-    batch_size: int = 24  # Batch size for training
-    num_workers: int = 8  # Number of workers used in data-loading
+    batch_size: int = 20  # Batch size for training
+    num_workers: int = 4  # Number of workers used in data-loading
     labels_path: str = 'labels.json'  # Contains tokens for model output
     spect: SpectConfig = SpectConfig()
     augmentation: AugmentationConfig = AugmentationConfig()
@@ -81,13 +87,15 @@ class CometMLConfig:
     api_key: str = ''
     project_name: str = "deep-lt"
     workspace: str = "mjurkus"
-    disabled: bool = True
+    disabled: bool = True,
+    experiment_key: str = ''
 
 
 @dataclass
 class DeepSpeechConfig:
     optim: AdamConfig = AdamConfig()
     model: BiDirectionalConfig = BiDirectionalConfig()
+    checkpoint: CheckpointConfig = CheckpointConfig()
     training: TrainingConfig = TrainingConfig()
     data: DataConfig = DataConfig()
     augmentation: AugmentationConfig = AugmentationConfig()
