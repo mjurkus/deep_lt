@@ -121,13 +121,12 @@ def train(params):
     )
 
     comet_ml_api_key = os.environ.get('COMET_API_KEY', '')
-    comet_ml_disabled = os.environ.get('COMET_DISABLED', '')
     comet_ml_experiment_key = os.environ.get('COMET_EXPERIMENT_KEY', '')
     comet_logger = CometLogger(
         api_key=comet_ml_api_key,
         project_name='deep-lt',
         workspace='mjurkus',
-        disabled=comet_ml_disabled or len(comet_ml_api_key) == 0,
+        disabled=len(comet_ml_api_key) == 0,
         experiment_key=None if not comet_ml_experiment_key else comet_ml_experiment_key,
     )
 

@@ -4,7 +4,6 @@ import os
 
 import torch
 
-from deepspeech_pytorch.config import SpectConfig
 from deepspeech_pytorch.loader.data_loader import SpectrogramParser
 from deepspeech_pytorch.inference import transcribe
 from deepspeech_pytorch.opts import add_decoder_args, add_inference_args
