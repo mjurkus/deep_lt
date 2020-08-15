@@ -1,0 +1,31 @@
+epochs: 50
+fast_dev_run: True
+train_manifest: 'manifests/train_manifest.csv'
+val_manifest: 'manifests/val_manifest.csv'
+batch_size: 20  # Batch size for training
+num_workers: 4  # Number of workers used in data-loading
+labels_path: 'labels.json'  # Contains tokens for model output
+model:
+  hidden_size: 1024
+  hidden_layers: 1
+optimizer:
+  learning_rate: 3e-4  # Initial Learning Rate
+  weight_decay: 1e-5  # Initial Weight Decay
+  eps: 1e-8  # Adam eps
+  betas: (0.9, 0.999)  # Adam betas
+audio_conf:
+  sample_rate: 16000  # The sample rate for the data/model features
+  window_size: .02  # Window size for spectrogram generation (seconds)
+  window_stride: .01  # Window stride for spectrogram generation (seconds)
+  window: hamming  # Window type for spectrogram generation
+augment_config:
+  speed_volume_perturb: False  # Use random tempo and gain perturbations.
+  spec_augment: False  # Use simple spectral augmentation on mel spectograms.
+  noise_dir: ''  # Directory to inject noise into audio. If default, noise Inject not added
+  noise_prob: 0.4  # Probability of noise being added per sample
+  noise_min: 0.0  # Minimum noise level to sample from. (1.0 means all noise, not original signal)
+  noise_max: 0.5  # Maximum noise levels to sample from. Maximum 1.0
+checkpoint:
+  enabled: True # is checkpoint load enabled
+  checkpoint: '' # specific checkpoint
+  checkpoint_path: 'models' # where checkpoints should be stored

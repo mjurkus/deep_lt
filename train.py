@@ -1,17 +1,13 @@
-import hydra
-from hydra.core.config_store import ConfigStore
+from argparse import ArgumentParser
 
-from deepspeech_pytorch.config import DeepSpeechConfig
-from deepspeech_pytorch.training import train
-
-cs = ConfigStore.instance()
-cs.store(name="config", node=DeepSpeechConfig)
+import deepspeech_pytorch.training as training
 
 
-@hydra.main(config_name="config")
-def hydra_main(cfg: DeepSpeechConfig):
-    train(cfg=cfg)
+def main(args):
+    training.train(args)
 
 
 if __name__ == '__main__':
-    hydra_main()
+    parser = ArgumentParser()
+    parser = training.add_trainer_args(parser)
+    main(parser.parse_args())

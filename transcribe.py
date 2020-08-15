@@ -4,6 +4,7 @@ import os
 
 import torch
 
+from deepspeech_pytorch.config import SpectConfig
 from deepspeech_pytorch.loader.data_loader import SpectrogramParser
 from deepspeech_pytorch.inference import transcribe
 from deepspeech_pytorch.opts import add_decoder_args, add_inference_args
@@ -50,11 +51,14 @@ if __name__ == '__main__':
                             help='Returns time offset information')
     arg_parser = add_decoder_args(arg_parser)
     args = arg_parser.parse_args()
-    device = torch.device("cuda" if args.cuda else "cpu")
+    device = torch.device("cuda")
     model = load_model(device, args.model_path, args.half)
 
+    with open('labels.json') as label_file:
+        labels = json.load(label_file)
+
     decoder = load_decoder(decoder_type=args.decoder,
-                           labels=model.labels,
+                           labels=labels,
                            lm_path=args.lm_path,
                            alpha=args.alpha,
                            beta=args.beta,
@@ -63,7 +67,7 @@ if __name__ == '__main__':
                            beam_width=args.beam_width,
                            lm_workers=args.lm_workers)
 
-    spect_parser = SpectrogramParser(audio_conf=model.audio_conf,
+    spect_parser = SpectrogramParser(audio_conf=SpectConfig(),
                                      normalize=True)
 
     decoded_output, decoded_offsets = transcribe(audio_path=args.audio_path,

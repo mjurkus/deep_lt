@@ -12,9 +12,3 @@ class SpectrogramWindow(Enum):
     hann = 'hann'
     blackman = 'blackman'
     bartlett = 'bartlett'
-
-
-class RNNType(Enum):
-    lstm = 'lstm'
-    rnn = 'rnn'
-    gru = 'gru'

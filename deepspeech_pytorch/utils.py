@@ -1,36 +1,39 @@
-import torch
-
 from deepspeech_pytorch.decoder import GreedyDecoder
+from deepspeech_pytorch.enums import RNNType
 from deepspeech_pytorch.model import DeepSpeech
-
-
-def check_loss(loss, loss_value):
-    """
-    Check that warp-ctc loss is valid and will not break training
-    :return: Return if loss is valid, and the error in case it is not
-    """
-    loss_valid = True
-    error = ''
-    if loss_value == float("inf") or loss_value == float("-inf"):
-        loss_valid = False
-        error = "WARNING: received an inf loss"
-    elif torch.isnan(loss).sum() > 0:
-        loss_valid = False
-        error = 'WARNING: received a nan loss, setting loss value to 0'
-    elif loss_value < 0:
-        loss_valid = False
-        error = "WARNING: received a negative loss"
-    return loss_valid, error
+import json
 
 
 def load_model(device,
-               model_path,
-               use_half):
-    model = DeepSpeech.load_model(model_path)
+               model_path: str,
+               use_half: bool):
+    with open('labels.json') as label_file:
+        labels = json.load(label_file)
+
+    hparams = {
+        "model": {
+            "hidden_size": 1024,
+            "hidden_layers": 5,
+            "rnn_type": RNNType.lstm
+        },
+        "data": {
+            "spect": {
+                "sample_rate": 16000,
+                "window_size": .02,
+                "window_stride": .01,
+            }
+        },
+        "num_classes": len(labels)
+    }
+
+    print(hparams['model'])
+
+    model = DeepSpeech.load_from_checkpoint(
+        checkpoint_path=model_path,
+        cfg=hparams
+    )
+    model.to(device)
     model.eval()
-    model = model.to(device)
-    if use_half:
-        model = model.half()
     return model
 
 

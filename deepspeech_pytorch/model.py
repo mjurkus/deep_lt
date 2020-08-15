@@ -8,14 +8,6 @@ import torch.nn.functional as F
 from torch import optim
 from warpctc_pytorch import CTCLoss
 
-# Due to backwards compatibility we need to keep the below structure for mapping RNN type
-supported_rnns = {
-    'lstm': nn.LSTM,
-    'rnn': nn.RNN,
-    'gru': nn.GRU
-}
-supported_rnns_inv = dict((v, k) for k, v in supported_rnns.items())
-
 
 class SequenceWise(nn.Module):
     def __init__(self, module):
@@ -80,14 +72,13 @@ class InferenceBatchSoftmax(nn.Module):
 
 
 class BatchRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, rnn_type=nn.LSTM, bidirectional=False, batch_norm=True):
+    def __init__(self, input_size, hidden_size, bidirectional=False, batch_norm=True):
         super(BatchRNN, self).__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
         self.batch_norm = SequenceWise(nn.BatchNorm1d(input_size)) if batch_norm else None
-        self.rnn = rnn_type(input_size=input_size, hidden_size=hidden_size,
-                            bidirectional=bidirectional, bias=True)
+        self.rnn = nn.GRU(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True)
         self.num_directions = 2 if bidirectional else 1
 
     def flatten_parameters(self):
@@ -131,23 +122,28 @@ class Lookahead(nn.Module):
 
 
 class DeepSpeech(pl.LightningModule):
-    def __init__(self, cfg, rnn_type, labels, rnn_hidden_size, nb_layers, audio_conf,
-                 bidirectional, decoder, context=20):
+    def __init__(
+            self,
+            hparams: dict,
+            bidirectional=True,
+            decoder=None,
+            context=20
+    ):
         super(DeepSpeech, self).__init__()
 
-        self.cfg = cfg
-        self.hidden_size = rnn_hidden_size
-        self.hidden_layers = nb_layers
-        self.rnn_type = rnn_type
-        self.audio_conf = audio_conf
-        self.labels = labels
-        self.bidirectional = bidirectional
+        self.hparams = hparams
         self.decoder = decoder
+        self.bidirectional = bidirectional
         self.criterion = CTCLoss()
 
+        model = self.hparams['model']
+        num_classes = self.hparams['num_classes']
+        self.hidden_size = model['hidden_size']
+        self.hidden_layers = model['hidden_layers']
+
+        self.audio_conf = self.hparams['audio_conf']
         sample_rate = self.audio_conf["sample_rate"]
         window_size = self.audio_conf["window_size"]
-        num_classes = len(self.labels)
 
         self.conv = MaskConv(nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(41, 11), stride=(2, 2), padding=(20, 5)),
@@ -164,23 +160,23 @@ class DeepSpeech(pl.LightningModule):
         rnn_input_size *= 32
 
         rnns = []
-        rnn = BatchRNN(input_size=rnn_input_size, hidden_size=rnn_hidden_size, rnn_type=rnn_type,
+        rnn = BatchRNN(input_size=rnn_input_size, hidden_size=self.hidden_size,
                        bidirectional=bidirectional, batch_norm=False)
         rnns.append(('0', rnn))
-        for x in range(nb_layers - 1):
-            rnn = BatchRNN(input_size=rnn_hidden_size, hidden_size=rnn_hidden_size, rnn_type=rnn_type,
+        for x in range(self.hidden_layers - 1):
+            rnn = BatchRNN(input_size=self.hidden_size, hidden_size=self.hidden_size,
                            bidirectional=bidirectional)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
         self.lookahead = nn.Sequential(
             # consider adding batch norm?
-            Lookahead(rnn_hidden_size, context=context),
+            Lookahead(self.hidden_size, context=context),
             nn.Hardtanh(0, 20, inplace=True)
         ) if not bidirectional else None
 
         fully_connected = nn.Sequential(
-            nn.BatchNorm1d(rnn_hidden_size),
-            nn.Linear(rnn_hidden_size, num_classes, bias=False)
+            nn.BatchNorm1d(self.hidden_size),
+            nn.Linear(self.hidden_size, num_classes, bias=False)
         )
         self.fc = nn.Sequential(
             SequenceWise(fully_connected),
@@ -209,11 +205,12 @@ class DeepSpeech(pl.LightningModule):
         return x, output_lengths
 
     def configure_optimizers(self):
+        o = self.hparams['optimizer']
         self.optimizer = optim.AdamW(
-            self.parameters(), lr=self.cfg.optim.learning_rate,
-            betas=self.cfg.optim.betas,
-            eps=self.cfg.optim.eps,
-            weight_decay=self.cfg.optim.weight_decay
+            self.parameters(), lr=float(o['learning_rate']),
+            betas=eval(o['betas']),
+            eps=float(o['eps']),
+            weight_decay=float(o['weight_decay']),
         )
 
         self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -308,34 +305,6 @@ class DeepSpeech(pl.LightningModule):
             if type(m) == nn.modules.conv.Conv2d:
                 seq_len = ((seq_len + 2 * m.padding[1] - m.dilation[1] * (m.kernel_size[1] - 1) - 1) / m.stride[1] + 1)
         return seq_len.int()
-
-    @classmethod
-    def load_model(cls, path):
-        package = torch.load(path, map_location=lambda storage, loc: storage)
-        model = DeepSpeech.load_model_package(package)
-        return model
-
-    @classmethod
-    def load_model_package(cls, package):
-        model = cls(rnn_hidden_size=package['hidden_size'],
-                    nb_layers=package['hidden_layers'],
-                    labels=package['labels'],
-                    audio_conf=package['audio_conf'],
-                    rnn_type=supported_rnns[package['rnn_type']],
-                    bidirectional=package.get('bidirectional', True))
-        model.load_state_dict(package['state_dict'])
-        return model
-
-    def serialize_state(self):
-        return {
-            'hidden_size': self.hidden_size,
-            'hidden_layers': self.hidden_layers,
-            'rnn_type': supported_rnns_inv.get(self.rnn_type, self.rnn_type.__name__.lower()),
-            'audio_conf': self.audio_conf,
-            'labels': self.labels,
-            'state_dict': self.state_dict(),
-            'bidirectional': self.bidirectional,
-        }
 
     @staticmethod
     def get_param_size(model):
