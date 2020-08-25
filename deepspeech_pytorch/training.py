@@ -153,6 +153,7 @@ def train(params):
         fast_dev_run=hparams['fast_dev_run'],
         early_stop_callback=early_stopping,
         checkpoint_callback=model_checkpoint_callback,
+        precision=16
     )
 
     trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)

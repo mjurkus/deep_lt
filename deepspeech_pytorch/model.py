@@ -268,8 +268,10 @@ class DeepSpeech(pl.LightningModule):
         total_cer, total_wer, num_tokens, num_chars = 0, 0, 0, 0
         for x in range(len(target_strings)):
             transcript, reference = decoded_output[x][0], target_strings[x][0]
+
             wer_inst = self.decoder.wer(transcript, reference)
             cer_inst = self.decoder.cer(transcript, reference)
+
             total_wer += wer_inst
             total_cer += cer_inst
             num_tokens += len(reference.split())
