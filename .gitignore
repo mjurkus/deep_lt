@@ -107,3 +107,5 @@ data/*_dataset/
 .vscode/
 outputs/
 logs/*.log
+
+comet/

@@ -78,7 +78,7 @@ class BatchRNN(nn.Module):
         self.hidden_size = hidden_size
         self.bidirectional = bidirectional
         self.batch_norm = SequenceWise(nn.BatchNorm1d(input_size)) if batch_norm else None
-        self.rnn = nn.GRU(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True)
+        self.rnn = nn.LSTM(input_size=input_size, hidden_size=hidden_size, bidirectional=bidirectional, bias=True)
         self.num_directions = 2 if bidirectional else 1
 
     def flatten_parameters(self):
@@ -125,21 +125,18 @@ class DeepSpeech(pl.LightningModule):
     def __init__(
             self,
             hparams: dict,
-            bidirectional=True,
             decoder=None,
-            context=20
     ):
         super(DeepSpeech, self).__init__()
 
         self.hparams = hparams
         self.decoder = decoder
-        self.bidirectional = bidirectional
         self.criterion = CTCLoss()
 
-        model = self.hparams['model']
+        model_hparams = self.hparams['model']
         num_classes = self.hparams['num_classes']
-        self.hidden_size = model['hidden_size']
-        self.hidden_layers = model['hidden_layers']
+        self.hidden_size = model_hparams['hidden_size']
+        self.hidden_layers = model_hparams['hidden_layers']
 
         self.audio_conf = self.hparams['audio_conf']
         sample_rate = self.audio_conf["sample_rate"]
@@ -161,18 +158,13 @@ class DeepSpeech(pl.LightningModule):
 
         rnns = []
         rnn = BatchRNN(input_size=rnn_input_size, hidden_size=self.hidden_size,
-                       bidirectional=bidirectional, batch_norm=False)
+                       bidirectional=True, batch_norm=False)
         rnns.append(('0', rnn))
         for x in range(self.hidden_layers - 1):
             rnn = BatchRNN(input_size=self.hidden_size, hidden_size=self.hidden_size,
-                           bidirectional=bidirectional)
+                           bidirectional=True)
             rnns.append(('%d' % (x + 1), rnn))
         self.rnns = nn.Sequential(OrderedDict(rnns))
-        self.lookahead = nn.Sequential(
-            # consider adding batch norm?
-            Lookahead(self.hidden_size, context=context),
-            nn.Hardtanh(0, 20, inplace=True)
-        ) if not bidirectional else None
 
         fully_connected = nn.Sequential(
             nn.BatchNorm1d(self.hidden_size),
@@ -194,9 +186,6 @@ class DeepSpeech(pl.LightningModule):
 
         for rnn in self.rnns:
             x = rnn(x, output_lengths)
-
-        if not self.bidirectional:  # no need for lookahead layer in bidirectional
-            x = self.lookahead(x)
 
         x = self.fc(x)
         x = x.transpose(0, 1)

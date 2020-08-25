@@ -1,15 +1,16 @@
 epochs: 50
 fast_dev_run: True
-train_manifest: 'manifests/train_manifest.csv'
-val_manifest: 'manifests/val_manifest.csv'
-batch_size: 20  # Batch size for training
+train_manifest: 'manifests/train_liepa_manifest.csv'
+val_manifest: 'manifests/val_liepa_manifest.csv'
+batch_size: 10  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output
+comet_offline: True
 model:
   hidden_size: 1024
-  hidden_layers: 1
+  hidden_layers: 5
 optimizer:
-  learning_rate: 3e-4  # Initial Learning Rate
+  learning_rate: 3e-4 # Initial Learning Rate
   weight_decay: 1e-5  # Initial Weight Decay
   eps: 1e-8  # Adam eps
   betas: (0.9, 0.999)  # Adam betas
