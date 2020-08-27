@@ -1,7 +1,7 @@
 epochs: 50
 train_manifest: 'manifests/train_liepa_manifest.csv'
 val_manifest: 'manifests/val_liepa_manifest.csv'
-batch_size: 10  # Batch size for training
+batch_size: 30  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output
 model:
