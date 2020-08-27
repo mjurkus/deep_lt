@@ -1,12 +1,9 @@
 epochs: 50
-fast_dev_run: True
 train_manifest: 'manifests/train_liepa_manifest.csv'
 val_manifest: 'manifests/val_liepa_manifest.csv'
 batch_size: 10  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output
-comet_offline: True
-verbose: True
 model:
   hidden_size: 1024
   hidden_layers: 5
@@ -28,6 +25,6 @@ augment_config:
   noise_min: 0.0  # Minimum noise level to sample from. (1.0 means all noise, not original signal)
   noise_max: 0.5  # Maximum noise levels to sample from. Maximum 1.0
 checkpoint:
-  enabled: True # is checkpoint load enabled
+  enabled: False # is checkpoint load enabled
   checkpoint: '' # specific checkpoint
   checkpoint_path: 'models' # where checkpoints should be stored

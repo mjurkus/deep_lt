@@ -1,3 +1,4 @@
+import json
 import math
 from collections import OrderedDict
 
@@ -262,15 +263,17 @@ class DeepSpeech(pl.LightningModule):
             wer_inst = self.decoder.wer(transcript, reference)
             cer_inst = self.decoder.cer(transcript, reference)
 
-            if isinstance(self.logger, CometLogger) and self.hparams['verbose'] and verbose_counter < 5:
+            if isinstance(self.logger, CometLogger) and self.hparams['verbose'] and verbose_counter <= 2:
                 verbose_counter += 1
-
-                log = f"WER: {float(wer_inst) / len(reference.split())} \n" \
-                      f"CER: {float(cer_inst) / len(reference.replace(' ', ''))} \n" \
-                      f"Ref: {reference.lower()} \n" \
+                log = f"Ref: {reference.lower()}\n" \
                       f"Hyp: {transcript.lower()}"
 
-                self.logger.experiment.log_text()
+                metadata = {
+                    "wer": float(wer_inst) / len(reference.split() * 100),
+                    "cer": float(cer_inst) / len(reference.replace(' ', '')) * 100
+                }
+
+                self.logger.experiment.log_text(text=log, metadata=metadata)
 
             total_wer += wer_inst
             total_cer += cer_inst

@@ -67,7 +67,7 @@ def train(params):
 
     hparams: dict = {**hparams, **vars(params)}
 
-    logger.debug(json.dumps(hparams, sort_keys=True, indent=2))
+    logger.info(json.dumps(hparams, sort_keys=True, indent=2))
 
     with open(to_absolute_path(hparams['labels_path'])) as label_file:
         labels = json.load(label_file)

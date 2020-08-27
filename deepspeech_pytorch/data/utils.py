@@ -65,6 +65,8 @@ def order_and_prune_files(file_paths, min_duration, max_duration):
     def func(element):
         return element[1]
 
+    print(f"Total duration of dataset is {sum([x[1] for x in duration_file_paths]) / 3600} hours")
+
     duration_file_paths.sort(key=func)
     return [x[0] for x in duration_file_paths]  # Remove durations
 

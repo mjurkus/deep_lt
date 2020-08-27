@@ -109,3 +109,4 @@ outputs/
 logs/*.log
 
 comet/
+.comet.config
