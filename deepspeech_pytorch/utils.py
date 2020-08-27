@@ -1,12 +1,14 @@
+from pathlib import Path
+
 from deepspeech_pytorch.decoder import GreedyDecoder
-from deepspeech_pytorch.enums import RNNType
 from deepspeech_pytorch.model import DeepSpeech
 import json
+import os
 
-
-def load_model(device,
-               model_path: str,
-               use_half: bool):
+def load_model(
+        device,
+        model_path: str,  # TODO use path
+):
     with open('labels.json') as label_file:
         labels = json.load(label_file)
 
@@ -14,14 +16,11 @@ def load_model(device,
         "model": {
             "hidden_size": 1024,
             "hidden_layers": 5,
-            "rnn_type": RNNType.lstm
         },
-        "data": {
-            "spect": {
-                "sample_rate": 16000,
-                "window_size": .02,
-                "window_stride": .01,
-            }
+        "audio_conf": {
+            "sample_rate": 16000,
+            "window_size": .02,
+            "window_stride": .01,
         },
         "num_classes": len(labels)
     }
@@ -29,8 +28,9 @@ def load_model(device,
     print(hparams['model'])
 
     model = DeepSpeech.load_from_checkpoint(
-        checkpoint_path=model_path,
-        cfg=hparams
+        checkpoint_path=to_absolute_path('models/epoch_epoch=12-val_loss=457.15-wer=3.13-cer=0.44.ckpt'),
+        hparams=hparams,
+        decoder=None,
     )
     model.to(device)
     model.eval()
@@ -58,8 +58,7 @@ def load_decoder(decoder_type,
                                  beam_width=beam_width,
                                  num_processes=lm_workers)
     else:
-        decoder = GreedyDecoder(labels=labels,
-                                blank_index=labels.index('_'))
+        decoder = GreedyDecoder(labels=labels)
     return decoder
 
 
@@ -72,3 +71,13 @@ def remove_parallel_wrapper(model):
     # Take care of distributed/data-parallel wrapper
     model_no_wrapper = model.module if hasattr(model, "module") else model
     return model_no_wrapper
+
+
+def to_absolute_path(path: str) -> str:
+    path = Path(path)
+
+    if path.is_absolute():
+        return path
+
+    base = Path(os.getcwd())
+    return str(base / path)

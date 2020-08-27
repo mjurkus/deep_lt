@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from pytorch_lightning.loggers import CometLogger
 from torch import optim
 from warpctc_pytorch import CTCLoss
 
@@ -254,12 +255,22 @@ class DeepSpeech(pl.LightningModule):
         decoded_output, _ = self.decoder.decode(out, output_sizes)
         target_strings = self.decoder.convert_to_strings(split_targets)
 
-        total_cer, total_wer, num_tokens, num_chars = 0, 0, 0, 0
+        verbose_counter, total_cer, total_wer, num_tokens, num_chars = 0, 0, 0, 0, 0
         for x in range(len(target_strings)):
             transcript, reference = decoded_output[x][0], target_strings[x][0]
 
             wer_inst = self.decoder.wer(transcript, reference)
             cer_inst = self.decoder.cer(transcript, reference)
+
+            if isinstance(self.logger, CometLogger) and self.hparams['verbose'] and verbose_counter < 5:
+                verbose_counter += 1
+
+                log = f"WER: {float(wer_inst) / len(reference.split())} \n" \
+                      f"CER: {float(cer_inst) / len(reference.replace(' ', ''))} \n" \
+                      f"Ref: {reference.lower()} \n" \
+                      f"Hyp: {transcript.lower()}"
+
+                self.logger.experiment.log_text()
 
             total_wer += wer_inst
             total_cer += cer_inst

@@ -123,7 +123,7 @@ def train(params):
     comet_ml_experiment_key = os.environ.get('COMET_EXPERIMENT_KEY', None)
     comet_logger = CometLogger(
         save_dir='comet',
-        project_name='asr-lt',
+        project_name='deep-lt',
         workspace='mjurkus',
         offline=params.comet_offline,
         experiment_key=None if not comet_ml_experiment_key else comet_ml_experiment_key,
@@ -171,5 +171,6 @@ def to_absolute_path(path: str) -> str:
 def add_trainer_args(parser: ArgumentParser) -> ArgumentParser:
     parser.add_argument("--fast_dev_run", action='store_true')
     parser.add_argument("--comet_offline", default=False, action='store_true')
+    parser.add_argument("--verbose", default=False, action='store_true')
 
     return parser
