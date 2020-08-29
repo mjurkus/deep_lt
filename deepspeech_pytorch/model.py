@@ -263,7 +263,7 @@ class DeepSpeech(pl.LightningModule):
             wer_inst = self.decoder.wer(transcript, reference)
             cer_inst = self.decoder.cer(transcript, reference)
 
-            if isinstance(self.logger, CometLogger) and self.hparams['verbose'] and verbose_counter <= 2:
+            if self.hparams['verbose'] and verbose_counter <= 2:
                 verbose_counter += 1
                 log = f"Ref: {reference.lower()}\n" \
                       f"Hyp: {transcript.lower()}"

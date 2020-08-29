@@ -84,7 +84,8 @@ def train(params):
     else:
         model = DeepSpeech.load_from_checkpoint(
             checkpoint_path=get_model_path(hparams['checkpoint']),
-            hparams=hparams,
+            hparams_file='hparams.yaml',
+            hparam_overrides=hparams,
             decoder=decoder,
         )
 
