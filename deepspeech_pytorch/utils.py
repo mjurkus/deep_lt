@@ -28,7 +28,7 @@ def load_model(
     print(hparams['model'])
 
     model = DeepSpeech.load_from_checkpoint(
-        checkpoint_path=to_absolute_path('models/epoch_epoch=12-val_loss=457.15-wer=3.13-cer=0.44.ckpt'),
+        checkpoint_path=to_absolute_path('models/epoch_epoch=2-val_loss=816.40-wer=1.84-cer=0.31.ckpt'),
         hparams=hparams,
         decoder=None,
     )
