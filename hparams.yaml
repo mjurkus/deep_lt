@@ -1,6 +1,6 @@
 epochs: 50
-train_manifest: 'manifests/train_babel_scripted_manifest.csv'
-val_manifest: 'manifests/val_babel_scripted_manifest.csv'
+train_manifest: 'manifests/train_manifest.csv'
+val_manifest: 'manifests/val__manifest.csv'
 batch_size: 16  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output

@@ -2,7 +2,6 @@ import fnmatch
 import io
 import multiprocessing
 import os
-import subprocess
 from multiprocessing import Pool
 
 import pandas as pd

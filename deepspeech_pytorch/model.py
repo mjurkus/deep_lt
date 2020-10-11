@@ -187,16 +187,12 @@ class DeepSpeech(pl.LightningModule):
             weight_decay=float(o['weight_decay']),
         )
 
-        self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer,
-            mode='min',
-            factor=0.50,
-            patience=6,
+        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
+            optimizer=self.optimizer,
+            gamma=0.99
         )
 
-        lr_scheduler = {'scheduler': self.scheduler, 'interval': 'step', 'monitor': 'loss'}
-
-        return [self.optimizer], [lr_scheduler]
+        return [self.optimizer], [self.scheduler]
 
     def training_step(self, batch, batch_idx):
         inputs, targets, input_percentages, target_sizes = batch
@@ -234,7 +230,7 @@ class DeepSpeech(pl.LightningModule):
             target_sizes=target_sizes
         )
         self.log('wer', self.wer, prog_bar=True, on_epoch=True)
-        self.log('cer', self.cer, prog_bar=True, on_epoch=True,)
+        self.log('cer', self.cer, prog_bar=True, on_epoch=True, )
 
     def get_seq_lens(self, input_length):
         """
