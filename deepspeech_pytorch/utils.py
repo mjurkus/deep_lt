@@ -1,13 +1,14 @@
+import json
+import os
 from pathlib import Path
 
 from deepspeech_pytorch.decoder import GreedyDecoder
 from deepspeech_pytorch.model import DeepSpeech
-import json
-import os
+
 
 def load_model(
         device,
-        model_path: str,  # TODO use path
+        model_path: str,
 ):
     with open('labels.json') as label_file:
         labels = json.load(label_file)
@@ -21,6 +22,7 @@ def load_model(
             "sample_rate": 16000,
             "window_size": .02,
             "window_stride": .01,
+            "window": "hamming",
         },
         "num_classes": len(labels)
     }
@@ -28,7 +30,7 @@ def load_model(
     print(hparams['model'])
 
     model = DeepSpeech.load_from_checkpoint(
-        checkpoint_path=to_absolute_path('models/epoch_epoch=2-val_loss=816.40-wer=1.84-cer=0.31.ckpt'),
+        checkpoint_path=to_absolute_path(model_path),
         hparams=hparams,
         decoder=None,
     )

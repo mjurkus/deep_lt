@@ -110,3 +110,5 @@ logs/*.log
 
 comet/
 .comet.config
+
+manifests/*.csv

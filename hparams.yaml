@@ -7,7 +7,7 @@ labels_path: 'labels.json'  # Contains tokens for model output
 num_classes: 38 # default for LT language
 model:
   hidden_size: 1024
-  hidden_layers: 5
+  hidden_layers: 2
 optimizer:
   learning_rate: 1e-4 # Initial Learning Rate
   weight_decay: 1e-5  # Initial Weight Decay

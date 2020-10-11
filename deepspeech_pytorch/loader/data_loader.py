@@ -1,4 +1,6 @@
-import math
+import os
+from tempfile import NamedTemporaryFile
+
 import os
 from tempfile import NamedTemporaryFile
 
@@ -7,7 +9,7 @@ import numpy as np
 import soundfile as sf
 import sox
 import torch
-from torch.utils.data import Dataset, Sampler, DistributedSampler, DataLoader
+from torch.utils.data import Dataset, DataLoader
 
 from deepspeech_pytorch.loader.spec_augment import spec_augment
 
@@ -212,96 +214,6 @@ class AudioDataLoader(DataLoader):
         """
         super(AudioDataLoader, self).__init__(*args, **kwargs)
         self.collate_fn = _collate_fn
-
-
-class DSRandomSampler(Sampler):
-    """
-    Implementation of a Random Sampler for sampling the dataset.
-    Added to ensure we reset the start index when an epoch is finished.
-    This is essential since we support saving/loading state during an epoch.
-    """
-
-    def __init__(self, dataset, batch_size=1, start_index=0):
-        super().__init__(data_source=dataset)
-
-        self.dataset = dataset
-        self.start_index = start_index
-        self.batch_size = batch_size
-        ids = list(range(len(self.dataset)))
-        self.bins = [ids[i:i + self.batch_size] for i in range(0, len(ids), self.batch_size)]
-
-    def __iter__(self):
-        # deterministically shuffle based on epoch
-        g = torch.Generator()
-        g.manual_seed(self.epoch)
-        indices = (
-            torch.randperm(len(self.bins) - self.start_index, generator=g)
-                .add(self.start_index)
-                .tolist()
-        )
-        for x in indices:
-            batch_ids = self.bins[x]
-            np.random.shuffle(batch_ids)
-            yield batch_ids
-
-    def __len__(self):
-        return len(self.bins) - self.start_index
-
-    def set_epoch(self, epoch):
-        self.epoch = epoch
-
-    def reset_training_step(self, training_step):
-        self.start_index = training_step
-
-
-class DSElasticDistributedSampler(DistributedSampler):
-    """
-    Overrides the ElasticDistributedSampler to ensure we reset the start index when an epoch is finished.
-    This is essential since we support saving/loading state during an epoch.
-    """
-
-    def __init__(self, dataset, num_replicas=None, rank=None, start_index=0, batch_size=1):
-        super().__init__(dataset=dataset, num_replicas=num_replicas, rank=rank)
-        self.start_index = start_index
-        self.batch_size = batch_size
-        ids = list(range(len(dataset)))
-        self.bins = [ids[i:i + self.batch_size] for i in range(0, len(ids), self.batch_size)]
-        self.num_samples = int(
-            math.ceil(float(len(self.bins) - self.start_index) / self.num_replicas)
-        )
-        self.total_size = self.num_samples * self.num_replicas
-
-    def __iter__(self):
-        # deterministically shuffle based on epoch
-        g = torch.Generator()
-        g.manual_seed(self.epoch)
-        indices = (
-            torch.randperm(len(self.bins) - self.start_index, generator=g)
-                .add(self.start_index)
-                .tolist()
-        )
-
-        # add extra samples to make it evenly divisible
-        indices += indices[: (self.total_size - len(indices))]
-        assert len(indices) == self.total_size
-
-        # subsample
-        indices = indices[self.rank: self.total_size: self.num_replicas]
-        assert len(indices) == self.num_samples
-        for x in indices:
-            batch_ids = self.bins[x]
-            np.random.shuffle(batch_ids)
-            yield batch_ids
-
-    def __len__(self):
-        return self.num_samples
-
-    def reset_training_step(self, training_step):
-        self.start_index = training_step
-        self.num_samples = int(
-            math.ceil(float(len(self.bins) - self.start_index) / self.num_replicas)
-        )
-        self.total_size = self.num_samples * self.num_replicas
 
 
 def audio_with_sox(path, sample_rate, start_time, end_time):

@@ -1,4 +1,3 @@
-import json
 import math
 from collections import OrderedDict
 
@@ -6,7 +5,6 @@ import pytorch_lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from pytorch_lightning.loggers import CometLogger
 from torch import optim
 from warpctc_pytorch import CTCLoss
 
@@ -223,28 +221,34 @@ class DeepSpeech(pl.LightningModule):
 
         # https://github.com/SeanNaren/warp-ctc/issues/62
         device = torch.device('cpu')
-        loss = self.criterion(out, targets.to(device), output_sizes.to(device), target_sizes.to(device))
+        loss = self.criterion(
+            out,
+            targets.to(device),
+            output_sizes.to(device),
+            target_sizes.to(device),
+        )
         loss = loss / inputs.size(0)
 
-        comet_logs = {'training_loss': loss}
+        self.log("loss", loss)
 
-        return {'loss': loss, 'log': comet_logs}
+        return loss
 
     def validation_step(self, batch, batch_idx):
         inputs, targets, input_percentages, target_sizes = batch
         input_sizes = input_percentages.mul_(int(inputs.size(3))).int()
 
         out, output_sizes = self.forward(inputs, input_sizes)
+        out = out.transpose(0, 1)  # TxNxH
+        out = out.float()
 
         # https://github.com/SeanNaren/warp-ctc/issues/62
         device = torch.device('cpu')
         val_loss = self.criterion(
-            out.transpose(0, 1).float(),
+            out,
             targets.to(device),
             output_sizes.to(device),
             target_sizes.to(device)
         )
-
         val_loss = val_loss / inputs.size(0)
 
         split_targets = []
@@ -283,20 +287,26 @@ class DeepSpeech(pl.LightningModule):
         wer = float(total_wer) / num_tokens * 100
         cer = float(total_cer) / num_chars * 100
 
-        return {'val_loss': val_loss, 'wer': wer, 'cer': cer}
+        self.log_dict(
+            {
+                "val_loss": val_loss,
+                "wer": wer,
+                "cer": cer
+            }
+        )
 
     def validation_epoch_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
         avg_wer = torch.stack([torch.tensor(x['wer']) for x in outputs]).mean()
         avg_cer = torch.stack([torch.tensor(x['cer']) for x in outputs]).mean()
 
-        comet_logs = OrderedDict({
-            'val_loss': avg_loss,
-            'wer': avg_wer,
-            'cer': avg_cer
-        })
-
-        return {'val_loss': avg_loss, 'log': comet_logs, }
+        self.log_dict(
+            {
+                'val_loss': avg_loss,
+                'wer': avg_wer,
+                'cer': avg_cer
+            }
+        )
 
     def get_seq_lens(self, input_length):
         """
