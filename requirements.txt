@@ -2,7 +2,7 @@ scipy==1.5.2
 numpy==1.19.1
 soundfile==0.10.3.post1
 python-levenshtein==0.12.0
-torch==1.5.1
+torch==1.6.0
 torchelastic==0.2.0
 visdom==0.1.8.9
 wget==3.2
@@ -16,5 +16,5 @@ sox==1.4.0
 pandas==1.1.1
 scikit-learn==0.23.2
 comet-ml==3.2.3
-pytorch-lightning==0.10.0
+pytorch-lightning==1.0.0rc4
 pydub

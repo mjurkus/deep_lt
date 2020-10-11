@@ -6,7 +6,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
-from warpctc_pytorch import CTCLoss
+from torch.cuda.amp import autocast
+from torch.nn import CTCLoss
+
+from deepspeech_pytorch.validation import WordErrorRate, CharErrorRate
 
 
 class SequenceWise(nn.Module):
@@ -95,32 +98,6 @@ class BatchRNN(nn.Module):
         return x
 
 
-class Lookahead(nn.Module):
-    # Wang et al 2016 - Lookahead Convolution Layer for Unidirectional Recurrent Neural Networks
-    # input shape - sequence, batch, feature - TxNxH
-    # output shape - same as input
-    def __init__(self, n_features, context):
-        super(Lookahead, self).__init__()
-        assert context > 0
-        self.context = context
-        self.n_features = n_features
-        self.pad = (0, self.context - 1)
-        self.conv = nn.Conv1d(self.n_features, self.n_features, kernel_size=self.context, stride=1,
-                              groups=self.n_features, padding=0, bias=None)
-
-    def forward(self, x):
-        x = x.transpose(0, 1).transpose(1, 2)
-        x = F.pad(x, pad=self.pad, value=0)
-        x = self.conv(x)
-        x = x.transpose(1, 2).transpose(0, 1).contiguous()
-        return x
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(' \
-               + 'n_features=' + str(self.n_features) \
-               + ', context=' + str(self.context) + ')'
-
-
 class DeepSpeech(pl.LightningModule):
     def __init__(
             self,
@@ -131,14 +108,22 @@ class DeepSpeech(pl.LightningModule):
 
         self.hparams = hparams
         self.decoder = decoder
-        self.criterion = CTCLoss()
+        self.criterion = CTCLoss(reduction='sum', zero_infinity=True)
+        self.wer = WordErrorRate(
+            decoder=self.decoder,
+            target_decoder=self.decoder
+        )
+        self.cer = CharErrorRate(
+            decoder=self.decoder,
+            target_decoder=self.decoder
+        )
 
-        model_hparams = self.hparams['model']
+        model_hparams: dict = self.hparams['model']
         num_classes = self.hparams['num_classes']
         self.hidden_size = model_hparams['hidden_size']
         self.hidden_layers = model_hparams['hidden_layers']
 
-        self.audio_conf = self.hparams['audio_conf']
+        self.audio_conf: dict = self.hparams['audio_conf']
         sample_rate = self.audio_conf["sample_rate"]
         window_size = self.audio_conf["window_size"]
 
@@ -194,7 +179,7 @@ class DeepSpeech(pl.LightningModule):
         return x, output_lengths
 
     def configure_optimizers(self):
-        o = self.hparams['optimizer']
+        o: dict = self.hparams['optimizer']
         self.optimizer = optim.AdamW(
             self.parameters(), lr=float(o['learning_rate']),
             betas=eval(o['betas']),
@@ -209,7 +194,9 @@ class DeepSpeech(pl.LightningModule):
             patience=6,
         )
 
-        return [self.optimizer], [self.scheduler]
+        lr_scheduler = {'scheduler': self.scheduler, 'interval': 'step', 'monitor': 'loss'}
+
+        return [self.optimizer], [lr_scheduler]
 
     def training_step(self, batch, batch_idx):
         inputs, targets, input_percentages, target_sizes = batch
@@ -217,18 +204,9 @@ class DeepSpeech(pl.LightningModule):
 
         out, output_sizes = self.forward(inputs, input_sizes)
         out = out.transpose(0, 1)  # TxNxH
-        out = out.float()
+        out = out.log_softmax(-1)
 
-        # https://github.com/SeanNaren/warp-ctc/issues/62
-        device = torch.device('cpu')
-        loss = self.criterion(
-            out,
-            targets.to(device),
-            output_sizes.to(device),
-            target_sizes.to(device),
-        )
-        loss = loss / inputs.size(0)
-
+        loss = self.criterion(out, targets, output_sizes, target_sizes)
         self.log("loss", loss)
 
         return loss
@@ -236,77 +214,27 @@ class DeepSpeech(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         inputs, targets, input_percentages, target_sizes = batch
         input_sizes = input_percentages.mul_(int(inputs.size(3))).int()
+        inputs = inputs.to(self.device)
 
-        out, output_sizes = self.forward(inputs, input_sizes)
-        out = out.transpose(0, 1)  # TxNxH
-        out = out.float()
-
-        # https://github.com/SeanNaren/warp-ctc/issues/62
-        device = torch.device('cpu')
-        val_loss = self.criterion(
-            out,
-            targets.to(device),
-            output_sizes.to(device),
-            target_sizes.to(device)
-        )
-        val_loss = val_loss / inputs.size(0)
-
-        split_targets = []
-        offset = 0
-        for size in target_sizes:
-            split_targets.append(targets[offset:offset + size])
-            offset += size
+        with autocast(enabled=False):
+            out, output_sizes = self(inputs, input_sizes)
 
         decoded_output, _ = self.decoder.decode(out, output_sizes)
-        target_strings = self.decoder.convert_to_strings(split_targets)
 
-        verbose_counter, total_cer, total_wer, num_tokens, num_chars = 0, 0, 0, 0, 0
-        for x in range(len(target_strings)):
-            transcript, reference = decoded_output[x][0], target_strings[x][0]
-
-            wer_inst = self.decoder.wer(transcript, reference)
-            cer_inst = self.decoder.cer(transcript, reference)
-
-            if self.hparams['verbose'] and verbose_counter <= 2:
-                verbose_counter += 1
-                log = f"Ref: {reference.lower()}\n" \
-                      f"Hyp: {transcript.lower()}"
-
-                metadata = {
-                    "wer": float(wer_inst) / len(reference.split() * 100),
-                    "cer": float(cer_inst) / len(reference.replace(' ', '')) * 100
-                }
-
-                self.logger.experiment.log_text(text=log, metadata=metadata)
-
-            total_wer += wer_inst
-            total_cer += cer_inst
-            num_tokens += len(reference.split())
-            num_chars += len(reference.replace(' ', ''))
-
-        wer = float(total_wer) / num_tokens * 100
-        cer = float(total_cer) / num_chars * 100
-
-        self.log_dict(
-            {
-                "val_loss": val_loss,
-                "wer": wer,
-                "cer": cer
-            }
+        self.wer(
+            preds=out,
+            preds_sizes=output_sizes,
+            targets=targets,
+            target_sizes=target_sizes
         )
-
-    def validation_epoch_end(self, outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        avg_wer = torch.stack([torch.tensor(x['wer']) for x in outputs]).mean()
-        avg_cer = torch.stack([torch.tensor(x['cer']) for x in outputs]).mean()
-
-        self.log_dict(
-            {
-                'val_loss': avg_loss,
-                'wer': avg_wer,
-                'cer': avg_cer
-            }
+        self.cer(
+            preds=out,
+            preds_sizes=output_sizes,
+            targets=targets,
+            target_sizes=target_sizes
         )
+        self.log('wer', self.wer, prog_bar=True, on_epoch=True)
+        self.log('cer', self.cer, prog_bar=True, on_epoch=True,)
 
     def get_seq_lens(self, input_length):
         """
@@ -318,7 +246,7 @@ class DeepSpeech(pl.LightningModule):
         seq_len = input_length
         for m in self.conv.modules():
             if type(m) == nn.modules.conv.Conv2d:
-                seq_len = ((seq_len + 2 * m.padding[1] - m.dilation[1] * (m.kernel_size[1] - 1) - 1) / m.stride[1] + 1)
+                seq_len = ((seq_len + 2 * m.padding[1] - m.dilation[1] * (m.kernel_size[1] - 1) - 1) // m.stride[1] + 1)
         return seq_len.int()
 
     @staticmethod

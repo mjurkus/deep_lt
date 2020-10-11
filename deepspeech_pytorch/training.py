@@ -16,7 +16,7 @@ logger.addHandler(logging.StreamHandler())
 
 import pytorch_lightning as pl
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import LearningRateLogger, ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.loggers import CometLogger
 
 from deepspeech_pytorch.decoder import GreedyDecoder
@@ -131,11 +131,12 @@ def train(params):
     )
 
     callbacks = [
-        LearningRateLogger(),
+        LearningRateMonitor(),
+        EarlyStopping('loss', patience=5, verbose=True)
     ]
 
     model_checkpoint_callback = ModelCheckpoint(
-        filepath='models/epoch_{epoch}-{val_loss:.2f}-{wer:.2f}-{cer:.2f}',
+        filepath='models/{epoch}-{loss:.2f}-{wer:.2f}-{cer:.2f}',
         save_weights_only=True,
         save_top_k=True,
         mode='min',
@@ -143,17 +144,15 @@ def train(params):
         verbose=True
     )
 
-    early_stopping = EarlyStopping('val_loss', patience=5, verbose=True)
-
     trainer = Trainer(
         logger=comet_logger,
         callbacks=callbacks,
         max_epochs=hparams['epochs'],
         gpus=1,
         fast_dev_run=hparams['fast_dev_run'],
-        early_stop_callback=early_stopping,
         checkpoint_callback=model_checkpoint_callback,
-        precision=16
+        gradient_clip_val=400,  # TODO move to confih
+        precision=32 # half precision does not work with Torch 1.6 https://github.com/pytorch/pytorch/issues/36428
     )
 
     trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)

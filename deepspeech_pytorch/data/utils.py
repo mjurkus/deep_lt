@@ -1,9 +1,12 @@
 import fnmatch
 import io
+import multiprocessing
 import os
 import subprocess
+from multiprocessing import Pool
 
 import pandas as pd
+import sox
 from tqdm import tqdm
 
 
@@ -71,15 +74,17 @@ def order_and_prune_files(file_paths, min_duration, max_duration):
     return [x[0] for x in duration_file_paths]  # Remove durations
 
 
+def _duration_file_path(path):
+    return path, sox.file_info.duration(path)
+
+
 def gather_file_durations(file_paths):
     """
     Returns: List of Tuple[path, duration]
     """
 
     print("Collecting audio file durations...")
-    duration_file_paths = []
-    for path in tqdm(file_paths, total=len(file_paths)):
-        duration_file_paths.append(
-            (path, float(subprocess.check_output(['soxi -D \"%s\"' % path.strip()], shell=True))))
+    with Pool(processes=multiprocessing.cpu_count()) as p:
+        duration_file_paths = list(tqdm(p.imap(_duration_file_path, file_paths), total=len(file_paths)))
 
     return duration_file_paths

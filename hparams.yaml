@@ -1,13 +1,13 @@
 epochs: 50
-train_manifest: 'manifests/train_liepa_manifest.csv'
-val_manifest: 'manifests/val_liepa_manifest.csv'
-batch_size: 30  # Batch size for training
+train_manifest: 'manifests/train_babel_scripted_manifest.csv'
+val_manifest: 'manifests/val_babel_scripted_manifest.csv'
+batch_size: 16  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output
 num_classes: 38 # default for LT language
 model:
   hidden_size: 1024
-  hidden_layers: 2
+  hidden_layers: 5
 optimizer:
   learning_rate: 1e-4 # Initial Learning Rate
   weight_decay: 1e-5  # Initial Weight Decay

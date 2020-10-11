@@ -1,9 +1,6 @@
 import os
 from tempfile import NamedTemporaryFile
 
-import os
-from tempfile import NamedTemporaryFile
-
 import librosa
 import numpy as np
 import soundfile as sf
@@ -203,7 +200,7 @@ def _collate_fn(batch):
         input_percentages[x] = seq_length / float(max_seqlength)
         target_sizes[x] = len(target)
         targets.extend(target)
-    targets = torch.IntTensor(targets)
+    targets = torch.tensor(targets, dtype=torch.long)
     return inputs, targets, input_percentages, target_sizes
 
 
