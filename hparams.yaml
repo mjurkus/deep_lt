@@ -4,7 +4,7 @@ val_manifest: 'manifests/val__manifest.csv'
 batch_size: 16  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output
-num_classes: 38 # default for LT language
+num_classes: 37 # default for LT language
 model:
   hidden_size: 1024
   hidden_layers: 5
