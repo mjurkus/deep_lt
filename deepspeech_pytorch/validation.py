@@ -72,9 +72,7 @@ class CharErrorRate(ErrorRate):
         self.n_chars += len(reference.replace(' ', ''))
 
     def compute(self):
-        print("############################")
         cer = float(self.cer) / float(self.n_chars)
-        print(f"{cer} {self.cer} {self.n_chars}")
         return cer * 100
 
     def cer_calc(self, s1, s2):
@@ -85,7 +83,6 @@ class CharErrorRate(ErrorRate):
             s1 (string): space-separated sentence
             s2 (string): space-separated sentence
         """
-        s1, s2, = s1.replace(' ', ''), s2.replace(' ', '')
         print(f"S1: {s1}")
         print(f"S2: {s2}")
         return Lev.distance(s1, s2)
@@ -115,8 +112,8 @@ class WordErrorRate(ErrorRate):
         self.n_tokens += len(reference.split())
 
     def compute(self):
-        wer = float(self.wer) / self.n_tokens
-        return wer.item() * 100
+        wer = float(self.wer) / float(self.n_tokens)
+        return wer * 100
 
     def wer_calc(self, s1, s2):
         """
