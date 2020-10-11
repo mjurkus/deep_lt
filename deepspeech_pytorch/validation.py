@@ -83,8 +83,6 @@ class CharErrorRate(ErrorRate):
             s1 (string): space-separated sentence
             s2 (string): space-separated sentence
         """
-        print(f"S1: {s1}")
-        print(f"S2: {s2}")
         return Lev.distance(s1, s2)
 
 
