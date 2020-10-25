@@ -27,8 +27,6 @@ def load_model(
         "num_classes": len(labels)
     }
 
-    print(hparams['model'])
-
     model = DeepSpeech.load_from_checkpoint(
         checkpoint_path=to_absolute_path(model_path),
         hparams=hparams,
@@ -62,17 +60,6 @@ def load_decoder(decoder_type,
     else:
         decoder = GreedyDecoder(labels=labels)
     return decoder
-
-
-def remove_parallel_wrapper(model):
-    """
-    Return the model or extract the model out of the parallel wrapper
-    :param model: The training model
-    :return: The model without parallel wrapper
-    """
-    # Take care of distributed/data-parallel wrapper
-    model_no_wrapper = model.module if hasattr(model, "module") else model
-    return model_no_wrapper
 
 
 def to_absolute_path(path: str) -> str:

@@ -1,7 +1,7 @@
 epochs: 50
 train_manifest: 'manifests/train_manifest.csv'
 val_manifest: 'manifests/val_manifest.csv'
-batch_size: 16  # Batch size for training
+batch_size: 6  # Batch size for training
 num_workers: 8  # Number of workers used in data-loading
 labels_path: 'labels.json'  # Contains tokens for model output
 num_classes: 37 # default for LT language
@@ -17,7 +17,6 @@ audio_conf:
   sample_rate: 16000  # The sample rate for the data/model features
   window_size: .02  # Window size for spectrogram generation (seconds)
   window_stride: .01  # Window stride for spectrogram generation (seconds)
-  window: hamming  # Window type for spectrogram generation
 augment_config:
   speed_volume_perturb: False  # Use random tempo and gain perturbations.
   spec_augment: False  # Use simple spectral augmentation on mel spectograms.

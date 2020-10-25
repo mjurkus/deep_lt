@@ -3,48 +3,96 @@ from tempfile import NamedTemporaryFile
 
 import librosa
 import numpy as np
-import soundfile as sf
+import pandas as pd
 import sox
 import torch
+import torch.nn as nn
+import torchaudio
 from torch.utils.data import Dataset, DataLoader
-
-from deepspeech_pytorch.loader.spec_augment import spec_augment
 
 
 def load_audio(path):
-    sound, sample_rate = sf.read(path, dtype='int16')
-    # TODO this should be 32768.0 to get twos-complement range.
-    # TODO the difference is negligible but should be fixed for new models.
-    sound = sound.astype('float32') / 32767  # normalize audio
-    if len(sound.shape) > 1:
-        if sound.shape[1] == 1:
-            sound = sound.squeeze()
-        else:
-            sound = sound.mean(axis=1)  # multiple channels, average
+    sound, sample_rate = torchaudio.load(path, normalization=True)
     return sound
 
 
-class AudioParser(object):
-    def parse_transcript(self, transcript_path):
-        """
-        :param transcript_path: Path where transcript is stored from the manifest file
-        :return: Transcript in training/testing format
-        """
-        raise NotImplementedError
+class SpecAugment(nn.Module):
 
-    def parse_audio(self, audio_path):
-        """
-        :param audio_path: Path where audio is stored from the manifest file
-        :return: Audio in training/testing format
-        """
-        raise NotImplementedError
+    def __init__(self, rate, policy=3, freq_mask=15, time_mask=35):
+        super(SpecAugment, self).__init__()
+
+        self.rate = rate
+
+        self.specaug = nn.Sequential(
+            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+            torchaudio.transforms.TimeMasking(time_mask_param=time_mask),
+        )
+
+        self.specaug2 = nn.Sequential(
+            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+            torchaudio.transforms.TimeMasking(time_mask_param=time_mask),
+            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
+            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)
+        )
+
+        policies = {1: self.policy1, 2: self.policy2, 3: self.policy3}
+        self._forward = policies[policy]
+
+    def forward(self, x):
+        return self._forward(x)
+
+    def policy1(self, x):
+        probability = torch.rand(1, 1).item()
+        if self.rate > probability:
+            return self.specaug(x)
+        return x
+
+    def policy2(self, x):
+        probability = torch.rand(1, 1).item()
+        if self.rate > probability:
+            return self.specaug2(x)
+        return x
+
+    def policy3(self, x):
+        probability = torch.rand(1, 1).item()
+        if probability > 0.5:
+            return self.policy1(x)
+        return self.policy2(x)
 
 
-class NoiseInjection(object):
-    def __init__(self,
-                 path=None,
-                 sample_rate=16000,
-                 noise_levels=(0, 0.5)):
+class LogMelSpec(nn.Module):
+
+    def __init__(self, sample_rate=16000, win_length: float = 0.02, hop_length: float = 0.01):
+        super(LogMelSpec, self).__init__()
+
+        win_length = int(sample_rate * 0.02)
+        hop_length = int(sample_rate * 0.01)
+
+        self.transform = torchaudio.transforms.MelSpectrogram(
+            sample_rate=sample_rate,
+            win_length=win_length,
+            hop_length=hop_length,
+            n_fft=win_length,
+            n_mels=161,
+        )
+
+    def forward(self, x):
+        x = self.transform(x)  # mel spectrogram
+        x = np.log(x + 1e-14)  # logrithmic, add small value to avoid inf
+        return x
+
+
+def get_featurizer(sample_rate=16000):
+    return LogMelSpec(sample_rate=sample_rate, win_length=0.02, hop_length=0.01)
+
+
+class NoiseInjection:
+    def __init__(
+            self,
+            path=None,
+            sample_rate=16000,
+            noise_levels=(0, 0.5)
+    ):
         """
         Adds noise to an input signal with specific SNR. Higher the noise level, the more noise added.
         Modified code from https://github.com/willfrey/audio/blob/master/torchaudio/transforms.py
@@ -74,99 +122,49 @@ class NoiseInjection(object):
         return data
 
 
-class SpectrogramParser(AudioParser):
-    def __init__(self,
-                 audio_conf: dict,
-                 normalize: bool = False,
-                 augmentation_conf: dict = None):
-        """
-        Parses audio file into spectrogram with optional normalization and various augmentations
-        :param audio_conf: Dictionary containing the sample rate, window and the window length/stride in seconds
-        :param normalize(default False):  Apply standard mean and deviation normalization to audio tensor
-        :param augmentation_conf(Optional): Config containing the augmentation parameters
-        """
-        super(SpectrogramParser, self).__init__()
-        self.window_stride = audio_conf['window_stride']
-        self.window_size = audio_conf['window_size']
-        self.sample_rate = audio_conf['sample_rate']
-        self.window = audio_conf['window']
-        self.normalize = normalize
-        self.aug_conf = augmentation_conf
-        if augmentation_conf and augmentation_conf['noise_dir']:
-            self.noise_injector = NoiseInjection(path=augmentation_conf['noise_dir'],
-                                                 sample_rate=self.sample_rate,
-                                                 noise_levels=augmentation_conf['noise_levels'])
-        else:
-            self.noise_injector = None
+class SpectrogramDataset(Dataset):
+    parameters = {
+        "sample_rate": 16000,
+        "specaug_rate": 0.5,
+        "specaug_policy": 3,
+        "time_mask": 70,
+        "freq_mask": 15
+    }
 
-    def parse_audio(self, audio_path):
-        if self.aug_conf and self.aug_conf['speed_volume_perturb']:
-            y = load_randomly_augmented_audio(audio_path, self.sample_rate)
-        else:
-            y = load_audio(audio_path)
-        if self.noise_injector:
-            add_noise = np.random.binomial(1, self.aug_conf['noise_prob'])
-            if add_noise:
-                y = self.noise_injector.inject_noise(y)
-        n_fft = int(self.sample_rate * self.window_size)
-        win_length = n_fft
-        hop_length = int(self.sample_rate * self.window_stride)
-        # STFT
-        D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length,
-                         win_length=win_length, window=self.window)
-        spect, phase = librosa.magphase(D)
-        # S = log(S+1)
-        spect = np.log1p(spect)
-        spect = torch.FloatTensor(spect)
-        if self.normalize:
-            mean = spect.mean()
-            std = spect.std()
-            spect.add_(-mean)
-            spect.div_(std)
-
-        if self.aug_conf and self.aug_conf['spec_augment']:
-            spect = spec_augment(spect)
-
-        return spect
-
-    def parse_transcript(self, transcript_path):
-        raise NotImplementedError
-
-
-class SpectrogramDataset(Dataset, SpectrogramParser):
-    def __init__(self,
-                 audio_conf: dict,
-                 manifest_filepath: str,
-                 labels: list,
-                 normalize: bool = False,
-                 augmentation_conf: dict = None):
-        """
-        Dataset that loads tensors via a csv containing file paths to audio files and transcripts separated by
-        a comma. Each new line is a different sample. Example below:
-
-        /path/to/audio.wav,/path/to/audio.txt
-        ...
-
-        :param audio_conf: Config containing the sample rate, window and the window length/stride in seconds
-        :param manifest_filepath: Path to manifest csv as describe above
-        :param labels: List containing all the possible characters to map to
-        :param normalize: Apply standard mean and deviation normalization to audio tensor
-        :param augmentation_conf(Optional): Config containing the augmentation parameters
-        """
-        with open(manifest_filepath) as f:
-            ids = f.readlines()
-        ids = [x.strip().split(',') for x in ids]
-        self.ids = ids
-        self.size = len(ids)
+    def __init__(
+            self,
+            manifest_filepath: str,
+            labels: list,
+            specaug_rate,
+            specaug_policy,
+            time_mask,
+            freq_mask,
+            validation: bool = False,
+            sample_rate=16000,
+    ):
+        self.df = pd.read_csv(manifest_filepath)
         self.labels_map = dict([(labels[i], i) for i in range(len(labels))])
-        super(SpectrogramDataset, self).__init__(audio_conf, normalize, augmentation_conf)
+
+        if validation:
+            self.audio_transforms = torch.nn.Sequential(
+                LogMelSpec(sample_rate=sample_rate)
+            )
+        else:
+            self.audio_transforms = torch.nn.Sequential(
+                LogMelSpec(sample_rate=sample_rate),
+                SpecAugment(specaug_rate, specaug_policy, freq_mask, time_mask)
+            )
 
     def __getitem__(self, index):
-        sample = self.ids[index]
-        audio_path, transcript_path = sample[0], sample[1]
+        sample = self.df.iloc[index]
+        audio_path, transcript_path = sample.audio, sample.text
         spect = self.parse_audio(audio_path)
         transcript = self.parse_transcript(transcript_path)
         return spect, transcript
+
+    def parse_audio(self, audio_path):
+        waveform = load_audio(audio_path)
+        return self.audio_transforms(waveform)  # (channel, feature, time)
 
     def parse_transcript(self, transcript_path):
         with open(transcript_path, 'r', encoding='utf8') as transcript_file:
@@ -175,25 +173,25 @@ class SpectrogramDataset(Dataset, SpectrogramParser):
         return transcript
 
     def __len__(self):
-        return self.size
+        return len(self.df)
 
 
 def _collate_fn(batch):
-    def func(p):
-        return p[0].size(1)
+    def max_by_sample_len(p):
+        return p[0].size(2)
 
-    batch = sorted(batch, key=lambda sample: sample[0].size(1), reverse=True)
-    longest_sample = max(batch, key=func)[0]
-    freq_size = longest_sample.size(0)
+    batch = sorted(batch, key=lambda sample: sample[0].size(2), reverse=True)
+    longest_sample = max(batch, key=max_by_sample_len)[0]
+    freq_size = longest_sample.size(1)
     minibatch_size = len(batch)
-    max_seqlength = longest_sample.size(1)
+    max_seqlength = longest_sample.size(2)
     inputs = torch.zeros(minibatch_size, 1, freq_size, max_seqlength)
     input_percentages = torch.FloatTensor(minibatch_size)
     target_sizes = torch.IntTensor(minibatch_size)
     targets = []
     for x in range(minibatch_size):
         sample = batch[x]
-        tensor = sample[0]
+        tensor = sample[0].squeeze(0)
         target = sample[1]
         seq_length = tensor.size(1)
         inputs[x][0].narrow(1, 0, seq_length).copy_(tensor)

@@ -180,19 +180,21 @@ class DeepSpeech(pl.LightningModule):
 
     def configure_optimizers(self):
         o: dict = self.hparams['optimizer']
-        self.optimizer = optim.AdamW(
+        optimizer = optim.AdamW(
             self.parameters(), lr=float(o['learning_rate']),
             betas=eval(o['betas']),
             eps=float(o['eps']),
             weight_decay=float(o['weight_decay']),
         )
 
-        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer=self.optimizer,
-            gamma=0.99
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer=optimizer,
+            max_lr=0.001,
+            steps_per_epoch=int(len(self.train_dataloader()) / self.hparams['batch_size']),
+            epochs=self.hparams['epochs'],
         )
 
-        return [self.optimizer], [self.scheduler]
+        return [optimizer], [scheduler]
 
     def training_step(self, batch, batch_idx):
         inputs, targets, input_percentages, target_sizes = batch

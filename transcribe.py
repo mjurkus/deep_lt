@@ -87,4 +87,7 @@ if __name__ == '__main__':
                                                  device=device,
                                                  use_half=args.half)
 
-    print(json.dumps(decode_results(decoded_output, decoded_offsets), sort_keys=True, indent=4, ensure_ascii=False))
+    with open(f"{args.audio_path}.json", "w") as result_file:
+        result_file.write(json.dumps(decode_results(decoded_output, decoded_offsets), sort_keys=True, indent=4, ensure_ascii=False))
+
+    print(f"Transcribe saved in: {args.audio_path}.json")

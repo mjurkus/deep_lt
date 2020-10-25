@@ -91,20 +91,18 @@ def train(params):
 
     logger.info("Number of parameters: %d" % DeepSpeech.get_param_size(model))
 
-    # Data setup
+    data_params = SpectrogramDataset.parameters
     train_dataset = SpectrogramDataset(
-        audio_conf=model.audio_conf,
         manifest_filepath=to_absolute_path(hparams['train_manifest']),
         labels=labels,
-        normalize=True,
-        augmentation_conf=hparams['augment_config'],
+        **data_params
     )
 
     val_dataset = SpectrogramDataset(
-        audio_conf=model.audio_conf,
-        manifest_filepath=to_absolute_path(hparams['train_manifest']),
+        manifest_filepath=to_absolute_path(hparams['val_manifest']),
         labels=labels,
-        normalize=True,
+        validation=True,
+        **data_params
     )
 
     train_loader = AudioDataLoader(
@@ -152,7 +150,7 @@ def train(params):
         fast_dev_run=hparams['fast_dev_run'],
         checkpoint_callback=model_checkpoint_callback,
         gradient_clip_val=400,  # TODO move to confih
-        precision=32 # half precision does not work with Torch 1.6 https://github.com/pytorch/pytorch/issues/36428
+        precision=32  # half precision does not work with Torch 1.6 https://github.com/pytorch/pytorch/issues/36428
     )
 
     trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)

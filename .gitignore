@@ -112,3 +112,4 @@ comet/
 .comet.config
 
 manifests/*.csv
+notebooks/**

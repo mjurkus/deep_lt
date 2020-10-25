@@ -12,7 +12,7 @@ from deepspeech_pytorch.opts import add_decoder_args
 from deepspeech_pytorch.utils import load_model
 
 parser = argparse.ArgumentParser(description='Tune an ARPA LM based on a pre-trained acoustic model output')
-parser.add_argument('--model-path', default='models/deepspeech_final.pth',
+parser.add_argument('--model-path', default='models/epoch=18-loss=14.51-wer=11.21-cer=3.84.ckpt',
                     help='Path to model file created by training')
 parser.add_argument('--saved-output', default="", type=str, help='Path to output from test.py')
 parser.add_argument('--num-workers', default=16, type=int, help='Number of parallel decodes to run')
@@ -32,16 +32,19 @@ if args.lm_path is None:
     print("error: LM must be provided for tuning")
     sys.exit(1)
 
-model = load_model(model_path=args.model_path,
-                   device='cpu',
-                   use_half=False)
+model = load_model(
+    model_path=args.model_path,
+    device='cpu',
+)
 
 saved_output = torch.load(args.saved_output)
 
+with open('labels.json') as label_file:
+    labels = json.load(label_file)
 
 def init(beam_width, blank_index, lm_path):
     global decoder
-    decoder = BeamCTCDecoder(model.labels, lm_path=lm_path, beam_width=beam_width, num_processes=args.lm_workers,
+    decoder = BeamCTCDecoder(labels, lm_path=lm_path, beam_width=beam_width, num_processes=args.lm_workers,
                              blank_index=blank_index)
 
 
@@ -69,7 +72,7 @@ def decode_dataset(params):
 
 
 if __name__ == '__main__':
-    p = Pool(args.num_workers, init, [args.beam_width, model.labels.index('_'), args.lm_path])
+    p = Pool(args.num_workers, init, [args.beam_width, labels.index('_'), args.lm_path])
 
     cand_alphas = np.linspace(args.lm_alpha_from, args.lm_alpha_to, args.lm_num_alphas)
     cand_betas = np.linspace(args.lm_beta_from, args.lm_beta_to, args.lm_num_betas)
