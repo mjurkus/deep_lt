@@ -125,8 +125,8 @@ class NoiseInjection:
 class SpectrogramDataset(Dataset):
     parameters = {
         "sample_rate": 16000,
-        "specaug_rate": 0.5,
-        "specaug_policy": 3,
+        "specaug_rate": 0.3,
+        "specaug_policy": 2,
         "time_mask": 70,
         "freq_mask": 15
     }
