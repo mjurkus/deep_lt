@@ -130,7 +130,7 @@ def train(params):
 
     callbacks = [
         LearningRateMonitor(),
-        EarlyStopping('loss', patience=5, verbose=True)
+        EarlyStopping('wer', patience=3, verbose=True)
     ]
 
     model_checkpoint_callback = ModelCheckpoint(
