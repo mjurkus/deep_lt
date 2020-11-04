@@ -9,6 +9,8 @@ import torch
 import torch.nn as nn
 import torchaudio
 from torch.utils.data import Dataset, DataLoader
+from torchaudio.sox_effects import apply_effects_tensor
+from torchaudio.transforms import TimeMasking, FrequencyMasking
 
 
 def load_audio(path):
@@ -16,48 +18,57 @@ def load_audio(path):
     return sound
 
 
-class SpecAugment(nn.Module):
+class SoxAugment(nn.Module):
 
-    def __init__(self, rate, policy=3, freq_mask=15, time_mask=35):
-        super(SpecAugment, self).__init__()
-
-        self.rate = rate
-
-        self.specaug = nn.Sequential(
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask),
-        )
-
-        self.specaug2 = nn.Sequential(
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask),
-            torchaudio.transforms.FrequencyMasking(freq_mask_param=freq_mask),
-            torchaudio.transforms.TimeMasking(time_mask_param=time_mask)
-        )
-
-        policies = {1: self.policy1, 2: self.policy2, 3: self.policy3}
-        self._forward = policies[policy]
+    def __init__(self, sample_rate=16000, debug: bool = False):
+        super(SoxAugment, self).__init__()
+        self.sample_rate = sample_rate
+        self.rng = np.random.RandomState(42)
+        self.debug = debug
 
     def forward(self, x):
-        return self._forward(x)
+        speed = self.rng.uniform(0.8, 1.2)
+        pitch = int(self.rng.uniform(-400, 400))
+        effects = [
+            ['gain', '-n'],  # normalises to 0dB
+            ['pitch', f"{pitch}"],  # pitch shift, valid rage -500..500
+            ['speed', f'{speed:.5f}'],
+            # consider adding echoes only in rare cases
+            # ["echos", "0.8", "0.9", f"{int(self.rng.uniform(1, 150))}", "0.4"],
+        ]
 
-    def policy1(self, x):
+        if self.debug:
+            print(effects)
+
+        x, _ = apply_effects_tensor(x, self.sample_rate, effects, channels_first=True)
+
+        return x
+
+
+class SpecAugment(nn.Module):
+
+    def __init__(self, rate, freq_mask=15):
+        super(SpecAugment, self).__init__()
+        self.rng = np.random.RandomState(42)
+        self.freq_mask = freq_mask
+        self.rate = rate
+
+    def forward(self, x):
         probability = torch.rand(1, 1).item()
         if self.rate > probability:
             return self.specaug(x)
+
         return x
 
-    def policy2(self, x):
-        probability = torch.rand(1, 1).item()
-        if self.rate > probability:
-            return self.specaug2(x)
-        return x
+    def specaug(self, x):
+        spec_len = x.shape[2]
+        time_mask = int(self.rng.uniform(spec_len * 0.05, spec_len * 0.15))
+        seq = nn.Sequential(
+            FrequencyMasking(freq_mask_param=self.freq_mask),
+            TimeMasking(time_mask_param=time_mask),
+        )
 
-    def policy3(self, x):
-        probability = torch.rand(1, 1).item()
-        if probability > 0.5:
-            return self.policy1(x)
-        return self.policy2(x)
+        return seq(x)
 
 
 class LogMelSpec(nn.Module):
@@ -126,9 +137,9 @@ class SpectrogramDataset(Dataset):
     parameters = {
         "sample_rate": 16000,
         "specaug_rate": 0.3,
-        "specaug_policy": 2,
-        "time_mask": 70,
-        "freq_mask": 15
+        "freq_mask": 15,
+        "spec_augment": True,
+        "sox_augment": True,
     }
 
     def __init__(
@@ -136,24 +147,28 @@ class SpectrogramDataset(Dataset):
             manifest_filepath: str,
             labels: list,
             specaug_rate,
-            specaug_policy,
-            time_mask,
             freq_mask,
             validation: bool = False,
             sample_rate=16000,
+            spec_augment: bool = False,
+            sox_augment: bool = True
     ):
-        self.df = pd.read_csv(manifest_filepath)
+        self.df = pd.read_csv(manifest_filepath).sample(frac=0.01)
         self.labels_map = dict([(labels[i], i) for i in range(len(labels))])
+        self.sample_rate = sample_rate
+        self.validation = validation
+        sox_augmentation, spec_augmentation = None, None
 
-        if validation:
-            self.audio_transforms = torch.nn.Sequential(
-                LogMelSpec(sample_rate=sample_rate)
-            )
-        else:
-            self.audio_transforms = torch.nn.Sequential(
-                LogMelSpec(sample_rate=sample_rate),
-                SpecAugment(specaug_rate, specaug_policy, freq_mask, time_mask)
-            )
+        if sox_augment and not validation:
+            sox_augmentation = SoxAugment(sample_rate=16000)
+        if spec_augment and not validation:
+            spec_augmentation = SpecAugment(specaug_rate, freq_mask)
+
+        mel_spec = LogMelSpec(sample_rate=sample_rate)
+
+        self.audio_transforms = torch.nn.Sequential(
+            *[augment for augment in [sox_augmentation, mel_spec, spec_augmentation] if augment is not None]
+        )
 
     def __getitem__(self, index):
         sample = self.df.iloc[index]
