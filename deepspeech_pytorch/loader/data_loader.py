@@ -153,7 +153,7 @@ class SpectrogramDataset(Dataset):
             spec_augment: bool = False,
             sox_augment: bool = True
     ):
-        self.df = pd.read_csv(manifest_filepath).sample(frac=0.01)
+        self.df = pd.read_csv(manifest_filepath)
         self.labels_map = dict([(labels[i], i) for i in range(len(labels))])
         self.sample_rate = sample_rate
         self.validation = validation
