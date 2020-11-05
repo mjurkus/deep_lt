@@ -139,7 +139,7 @@ class SpectrogramDataset(Dataset):
         "specaug_rate": 0.3,
         "freq_mask": 15,
         "spec_augment": True,
-        "sox_augment": True,
+        "sox_augment": False,
     }
 
     def __init__(
@@ -150,8 +150,8 @@ class SpectrogramDataset(Dataset):
             freq_mask,
             validation: bool = False,
             sample_rate=16000,
-            spec_augment: bool = False,
-            sox_augment: bool = True
+            spec_augment: bool = True,
+            sox_augment: bool = False
     ):
         self.df = pd.read_csv(manifest_filepath)
         self.labels_map = dict([(labels[i], i) for i in range(len(labels))])

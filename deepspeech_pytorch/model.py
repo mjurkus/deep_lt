@@ -187,11 +187,9 @@ class DeepSpeech(pl.LightningModule):
             weight_decay=float(o['weight_decay']),
         )
 
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(
             optimizer=optimizer,
-            max_lr=0.001,
-            steps_per_epoch=int(len(self.train_dataloader()) / self.hparams['batch_size']),
-            epochs=self.hparams['epochs'],
+            gamma=0.99
         )
 
         return [optimizer], [scheduler]
