@@ -215,8 +215,6 @@ class DeepSpeech(pl.LightningModule):
         with autocast(enabled=True):
             out, output_sizes = self(inputs, input_sizes)
 
-        decoded_output, _ = self.decoder.decode(out, output_sizes)
-
         self.wer(
             preds=out,
             preds_sizes=output_sizes,
@@ -230,7 +228,30 @@ class DeepSpeech(pl.LightningModule):
             target_sizes=target_sizes
         )
         self.log('wer', self.wer, prog_bar=True, on_epoch=True)
-        self.log('cer', self.cer, prog_bar=True, on_epoch=True, )
+        self.log('cer', self.cer, prog_bar=True, on_epoch=True)
+
+        # take first two batches only to avoid spamming
+        # TODO add flag to configuration
+        if batch_idx <= 1:
+            split_targets = []
+            offset = 0
+            for size in target_sizes:
+                split_targets.append(targets[offset:offset + size])
+                offset += size
+            decoded_output, _ = self.decoder.decode(out, output_sizes)
+            target_strings = self.decoder.convert_to_strings(split_targets)
+            for x in range(len(target_strings)):
+                transcript, reference = decoded_output[x][0], target_strings[x][0]
+
+                log = f"Ref: {reference}\n" \
+                      f"Hyp: {transcript}"
+
+                metadata = {
+                    "cer": self.cer.compute(),
+                    "wer": self.wer.compute()
+                }
+
+                self.logger.experiment.log_text(text=log, metadata=metadata)
 
     def get_seq_lens(self, input_length):
         """
