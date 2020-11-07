@@ -110,6 +110,7 @@ def train(params):
         num_workers=hparams['num_workers'],
         batch_size=hparams['batch_size'],
         shuffle=True,
+        pin_memory=True
     )
 
     val_loader = AudioDataLoader(
@@ -117,6 +118,7 @@ def train(params):
         num_workers=hparams['num_workers'],
         batch_size=hparams['batch_size'],
         shuffle=False,
+        pin_memory=True
     )
 
     comet_ml_experiment_key = os.environ.get('COMET_EXPERIMENT_KEY', None)
@@ -150,7 +152,7 @@ def train(params):
         fast_dev_run=hparams['fast_dev_run'],
         checkpoint_callback=model_checkpoint_callback,
         gradient_clip_val=400,  # TODO move to confih
-        precision=32  # half precision does not work with Torch 1.6 https://github.com/pytorch/pytorch/issues/36428
+        precision=16
     )
 
     trainer.fit(model, train_dataloader=train_loader, val_dataloaders=val_loader)

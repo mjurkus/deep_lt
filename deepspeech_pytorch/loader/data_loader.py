@@ -32,13 +32,10 @@ class SoxAugment(nn.Module):
         effects = [
             ['gain', '-n'],  # normalises to 0dB
             ['pitch', f"{pitch}"],  # pitch shift, valid rage -500..500
-            ['speed', f'{speed:.5f}'],
+            ['speed', f'{speed:.2f}'],
             # consider adding echoes only in rare cases
             # ["echos", "0.8", "0.9", f"{int(self.rng.uniform(1, 150))}", "0.4"],
         ]
-
-        if self.debug:
-            print(effects)
 
         x, _ = apply_effects_tensor(x, self.sample_rate, effects, channels_first=True)
 
@@ -138,8 +135,8 @@ class SpectrogramDataset(Dataset):
         "sample_rate": 16000,
         "specaug_rate": 0.3,
         "freq_mask": 15,
-        "spec_augment": True,
-        "sox_augment": False,
+        "spec_augment": False,
+        "sox_augment": True,
     }
 
     def __init__(
@@ -150,7 +147,7 @@ class SpectrogramDataset(Dataset):
             freq_mask,
             validation: bool = False,
             sample_rate=16000,
-            spec_augment: bool = True,
+            spec_augment: bool = False,
             sox_augment: bool = False
     ):
         self.df = pd.read_csv(manifest_filepath)

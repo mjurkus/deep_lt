@@ -212,7 +212,7 @@ class DeepSpeech(pl.LightningModule):
         input_sizes = input_percentages.mul_(int(inputs.size(3))).int()
         inputs = inputs.to(self.device)
 
-        with autocast(enabled=False):
+        with autocast(enabled=True):
             out, output_sizes = self(inputs, input_sizes)
 
         decoded_output, _ = self.decoder.decode(out, output_sizes)
