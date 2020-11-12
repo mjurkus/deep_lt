@@ -120,6 +120,7 @@ def train(params):
         gradient_clip_val=400,  # TODO move to config
         precision=16,
         auto_lr_find=True,
+        profiler="simple"
     )
 
     data_module = DeepSpeechDataModule(labels=labels, params=params)
