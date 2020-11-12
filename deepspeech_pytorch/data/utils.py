@@ -42,7 +42,7 @@ def create_dataframe(data_path, output_name, manifest_path):
         transcript_file_path = os.path.abspath(transcript_path)
         data.append((duration, audio_file_path, transcript_file_path))
 
-    df = pd.DataFrame(data, columns=["duration", "audio", "transcript"])
+    df = pd.DataFrame(data, columns=["duration", "audio", "text"])
     df.to_csv(manifest_path + output_name, index=False)
     print(f"Created pd.DataFrame at {manifest_path + output_name}")
 

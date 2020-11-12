@@ -101,8 +101,9 @@ class BatchRNN(nn.Module):
 class DeepSpeech(pl.LightningModule):
     def __init__(
             self,
-            hparams: dict,
+            hparams,
             decoder=None,
+            sample_rate=16000
     ):
         super(DeepSpeech, self).__init__()
 
@@ -118,14 +119,8 @@ class DeepSpeech(pl.LightningModule):
             target_decoder=self.decoder
         )
 
-        model_hparams: dict = self.hparams['model']
-        num_classes = self.hparams['num_classes']
-        self.hidden_size = model_hparams['hidden_size']
-        self.hidden_layers = model_hparams['hidden_layers']
-
-        self.audio_conf: dict = self.hparams['audio_conf']
-        sample_rate = self.audio_conf["sample_rate"]
-        window_size = self.audio_conf["window_size"]
+        self.hidden_size = hparams.hidden_size
+        self.hidden_layers = hparams.hidden_layers
 
         self.conv = MaskConv(nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=(41, 11), stride=(2, 2), padding=(20, 5)),
@@ -136,7 +131,7 @@ class DeepSpeech(pl.LightningModule):
             nn.Hardtanh(0, 20, inplace=True)
         ))
         # Based on above convolutions and spectrogram size using conv formula (W - F + 2P)/ S+1
-        rnn_input_size = int(math.floor((sample_rate * window_size) / 2) + 1)
+        rnn_input_size = int(math.floor((sample_rate * hparams.window_size) / 2) + 1)
         rnn_input_size = int(math.floor(rnn_input_size + 2 * 20 - 41) / 2 + 1)
         rnn_input_size = int(math.floor(rnn_input_size + 2 * 10 - 21) / 2 + 1)
         rnn_input_size *= 32
@@ -153,7 +148,7 @@ class DeepSpeech(pl.LightningModule):
 
         fully_connected = nn.Sequential(
             nn.BatchNorm1d(self.hidden_size),
-            nn.Linear(self.hidden_size, num_classes, bias=False)
+            nn.Linear(self.hidden_size, hparams.num_classes, bias=False)
         )
         self.fc = nn.Sequential(
             SequenceWise(fully_connected),
@@ -179,12 +174,11 @@ class DeepSpeech(pl.LightningModule):
         return x, output_lengths
 
     def configure_optimizers(self):
-        o: dict = self.hparams['optimizer']
         optimizer = optim.AdamW(
-            self.parameters(), lr=float(o['learning_rate']),
-            betas=eval(o['betas']),
-            eps=float(o['eps']),
-            weight_decay=float(o['weight_decay']),
+            self.parameters(),
+            lr=self.hparams.lr,
+            eps=self.hparams.eps,
+            weight_decay=self.hparams.weight_decay,
         )
 
         scheduler = torch.optim.lr_scheduler.ExponentialLR(

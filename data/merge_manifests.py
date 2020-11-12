@@ -21,7 +21,9 @@ def main():
 
     manifests = [f for f in os.listdir(source_dir) if f.endswith("csv")]
 
-    print(manifests)
+    print("Will merge manifests:")
+    for m in manifests:
+        print(m)
 
     manifest = Path(source_dir) / 'merged_manifest.csv'
 
