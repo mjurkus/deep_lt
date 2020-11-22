@@ -8,6 +8,7 @@ import torch.nn.functional as F
 from torch import optim
 from torch.cuda.amp import autocast
 from torch.nn import CTCLoss
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from deepspeech_pytorch.validation import WordErrorRate, CharErrorRate
 
@@ -181,10 +182,7 @@ class DeepSpeech(pl.LightningModule):
             weight_decay=self.hparams.weight_decay,
         )
 
-        scheduler = torch.optim.lr_scheduler.ExponentialLR(
-            optimizer=optimizer,
-            gamma=0.99
-        )
+        scheduler = ReduceLROnPlateau(optimizer, patience=3, threshold=1e-3)
 
         return [optimizer], [scheduler]
 
