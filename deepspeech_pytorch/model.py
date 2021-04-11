@@ -184,7 +184,7 @@ class DeepSpeech(pl.LightningModule):
 
         scheduler = ReduceLROnPlateau(optimizer, patience=3, threshold=1e-3)
 
-        return [optimizer], [scheduler]
+        return {"optimizer": optimizer, "lr_scheduler": scheduler, "monitor": "loss"}
 
     def training_step(self, batch, batch_idx):
         inputs, targets, input_percentages, target_sizes = batch

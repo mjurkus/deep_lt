@@ -119,8 +119,7 @@ def train(params):
         checkpoint_callback=model_checkpoint_callback,
         gradient_clip_val=400,  # TODO move to config
         precision=16,
-        auto_lr_find=True,
-        profiler="simple"
+        auto_lr_find=not params.fast_dev_run,
     )
 
     data_module = DeepSpeechDataModule(labels=labels, params=params)

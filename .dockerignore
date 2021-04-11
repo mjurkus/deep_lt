@@ -1,0 +1,15 @@
+__pycache__
+**/*.pyc
+logs/
+.ipynb_checkpoints
+.github
+comet/
+deepspeech_pytorch.egg-info/
+.idea
+.venv
+.git
+
+# include there via volumes
+manifests
+notebooks
+models

@@ -3,6 +3,7 @@ import io
 import multiprocessing
 import os
 from multiprocessing import Pool
+from pathlib import Path
 
 import pandas as pd
 import sox
@@ -16,11 +17,12 @@ def create_manifest(data_path, output_name, manifest_path, min_duration=None, ma
     file_paths = order_and_prune_files(file_paths, min_duration, max_duration)
 
     os.makedirs(manifest_path, exist_ok=True)
-    manifest_file = manifest_path + output_name
+    manifest_file = Path(manifest_path) / output_name
     with io.FileIO(manifest_file, "w") as file:
+        file.write("path,text\n".encode('utf-8'))
         for wav_path in tqdm(file_paths, total=len(file_paths)):
             transcript_path = wav_path.replace('/wav/', '/txt/').replace('.wav', '.txt')
-            sample = os.path.abspath(wav_path) + ',' + os.path.abspath(transcript_path) + '\n'
+            sample = os.path.abspath(wav_path) + ',' + Path(transcript_path).open().read() + '\n'
             file.write(sample.encode('utf-8'))
 
     print(f"Manifest created at {manifest_file}")

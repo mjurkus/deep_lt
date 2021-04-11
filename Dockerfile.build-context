@@ -1,0 +1,7 @@
+# test .dockerignore file to verify what is included in the docker image
+# docker build -f Dockerfile.build-context -t build-context .
+# docker run --rm -it build-context
+FROM busybox
+COPY . /build-context
+WORKDIR /build-context
+CMD find .

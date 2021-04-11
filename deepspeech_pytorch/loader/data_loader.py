@@ -151,18 +151,17 @@ class SpectrogramDataset(Dataset):
 
     def __getitem__(self, index):
         sample = self.df.iloc[index]
-        audio_path, transcript_path = sample.audio, sample.text
+        audio_path, transcript = sample.path, sample.text
         spect = self.parse_audio(audio_path)
-        transcript = self.parse_transcript(transcript_path)
+        transcript = self.parse_transcript(transcript)
         return spect, transcript
 
     def parse_audio(self, audio_path):
         waveform = load_audio(audio_path)
         return self.audio_transforms(waveform)  # (channel, feature, time)
 
-    def parse_transcript(self, transcript_path):
-        with open(transcript_path, 'r', encoding='utf8') as transcript_file:
-            transcript = transcript_file.read().replace('\n', '')
+    def parse_transcript(self, transcript):
+        transcript = transcript.replace('\n', '')
         transcript = list(filter(None, [self.labels_map.get(x) for x in list(transcript)]))
         return transcript
 
