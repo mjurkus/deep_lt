@@ -18,6 +18,6 @@ comet-ml==3.8.1
 pytorch-lightning==1.0.4
 pydub
 torchaudio==0.7.0
-jupyterlab==3.0.13
+jupyterlab==3.0.17
 jupyter-http-over-ws==0.0.8
 tornado==6.1
